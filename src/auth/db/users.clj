@@ -2,7 +2,10 @@
   (:require [jdbc.core :as jdbc]
             [hugsql.core :as sql]
             [hugsql.adapter.clojure-jdbc :as cj-adapter]
-            [buddy.hashers :as hs]))
+            [buddy.hashers :as hs]
+            [buddy.core.hash :as hash]
+            [buddy.sign.jwt :as jwt]
+            [clj-time.core :refer [minutes from-now]]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -36,7 +39,7 @@
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
-      [true (dissoc user :password)]
+      [true {:user (dissoc user :password)}]
       [false :invalid-password])
     [false :unknown-user]))
 
@@ -48,3 +51,24 @@
           [true]
           [false :failed])
         [false auth-result]))))
+
+(def ^:private encryption
+  {:alg :dir
+   :enc :a128cbc-hs256})
+
+(defn get-token [conn secret exp-minutes {:keys [username password] :as login}]
+  (let [[valid? result] (auth conn login)]
+    (if valid?
+      (let [claim {:user (:user result)
+                   :exp (-> exp-minutes minutes from-now)}
+            secret-key (hash/sha256 secret)
+            token (jwt/encrypt claim secret-key encryption)]
+        [true (assoc result :token token)])
+      [false result])))
+
+(defn auth-token [secret token]
+  (try
+    [true (jwt/decrypt token (hash/sha256 secret) encryption)]
+    (catch Exception e
+      [false (ex-data e)])))
+

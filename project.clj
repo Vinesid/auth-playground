@@ -8,7 +8,9 @@
                  [mysql/mysql-connector-java "6.0.3"]
                  [com.layerware/hugsql-core "0.4.7"]
                  [com.layerware/hugsql-adapter-clojure-jdbc "0.4.7"]
-                 [buddy/buddy-hashers "0.14.0"]]
+                 [buddy/buddy-hashers "0.14.0"]
+                 [buddy/buddy-sign "1.1.0"]
+                 [clj-time "0.12.0"]]
   :main ^:skip-aot auth-playground.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
