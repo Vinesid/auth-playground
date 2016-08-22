@@ -29,7 +29,8 @@ CREATE TABLE `tenant_user` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tenant_id` int,
   `user_id` int,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `tenant_user` (`tenant_id`, `user_id`)
 ) DEFAULT CHARSET=utf8;
 
 -- :name mysql-create-role-table

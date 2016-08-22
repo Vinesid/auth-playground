@@ -18,16 +18,19 @@
 (defn get-user [conn {:keys [username]}]
   (db-call :select-user conn {:username username}))
 
-(defn get-users [conn]
-  (db-call :select-users conn))
+(defn get-users
+  ([conn]
+   (db-call :select-users conn))
+  ([conn {:keys [name] :as tenant}]
+   (db-call :select-users-by-tenant conn tenant)))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
 
-(defn rename-user [conn {:keys [username new-username] :as user}]
-  (db-call :rename-user conn user))
+(defn rename-user [conn {:keys [username new-username] :as naming}]
+  (db-call :rename-user conn naming))
 
-(defn update-user [conn {:keys [username fullname email] :as user}]
+(defn update-user-info [conn {:keys [username fullname email] :as user}]
   (db-call :update-user conn user))
 
 (defn delete-user [conn {:keys [username]}]
@@ -74,4 +77,26 @@
     [true (jwt/decrypt token (hash/sha256 secret) encryption)]
     (catch Exception e
       [false (ex-data e)])))
+
+(defn add-to-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
+  (jdbc/atomic
+    conn
+    (let [user-id (:id (db-call :user-id conn user))
+          tenant-id (:id (db-call :tenant-id conn tenant))]
+      (if (and tenant-id user-id)
+        (db-call :insert-tenant-user conn {:tenant-id tenant-id
+                                           :user-id user-id})
+        0))))
+
+(defn remove-from-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
+  (jdbc/atomic
+    conn
+    (let [user-id (:id (db-call :user-id conn user))
+          tenant-id (:id (db-call :tenant-id conn tenant))]
+      (if (and tenant-id user-id)
+        (db-call :delete-tenant-user conn {:tenant-id tenant-id
+                                           :user-id user-id})
+        0))))
+
+
 
