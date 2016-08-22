@@ -1,29 +1,29 @@
 -- :name insert-user :! :n
-insert into users (username, fullname, email)
+insert into user (username, fullname, email)
 values (:username, :fullname, :email)
 
 -- :name delete-user :! :n
-delete from users
+delete from user
 where username = :username
 
 -- :name update-user :! :n
-update users
+update user
 set username = :username, fullname = :fullname, email = :email
 where username = :username
 
 -- :name update-encrypted-password :! :n
-update users
+update user
 set password = :password
 where username = :username
 
 -- :name select-user :? :1
-select username, fullname, email from users
+select username, fullname, email from user
 where username = :username
 
 -- :name select-user-with-password :? :1
-select username, fullname, email, password from users
+select username, fullname, email, password from user
 where username = :username
 
 -- :name select-users :? :n
-select username, fullname, email from users
+select username, fullname, email from user
 order by username

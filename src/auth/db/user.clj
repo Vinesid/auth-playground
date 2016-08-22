@@ -1,4 +1,4 @@
-(ns auth.db.users
+(ns auth.db.user
   (:require [jdbc.core :as jdbc]
             [hugsql.core :as sql]
             [hugsql.adapter.clojure-jdbc :as cj-adapter]
@@ -9,7 +9,7 @@
 
 (def ^:private db-fns
   (sql/map-of-db-fns
-    "auth/db/sql/users.sql"
+    "auth/db/sql/user.sql"
     {:adapter (cj-adapter/hugsql-adapter-clojure-jdbc)}))
 
 (defn- db-call [fn-name & args]

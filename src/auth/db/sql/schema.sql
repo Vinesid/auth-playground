@@ -1,13 +1,78 @@
--- :name create-users-table
+-- :name mysql-create-users-table
 -- :command :execute
 -- :result :raw
--- :doc Create users table
-CREATE TABLE `users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
+CREATE TABLE `user` (
+  `id` int NOT NULL AUTO_INCREMENT,
   `username` varchar(255) DEFAULT NULL,
   `fullname` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255),
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-tenant-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `tenant` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  `config` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-tenant-user-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `tenant_user` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int,
+  `user_id` int,
+  PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-role-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `role` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int,
+  `name` varchar(255) DEFAULT NULL,
+  `description` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `tenant_name` (`tenant_id`, `name`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-right-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `right` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  `description` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-role-right-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `role_right` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `role_id` int,
+  `right_id` int,
+  PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8;
+
+-- :name mysql-create-tenant-user-role-table
+-- :command :execute
+-- :result :raw
+CREATE TABLE `tenant_user_role` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int,
+  `user_id` int,
+  `role_id` int,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_tenant_user_role` (`tenant_id`, `user_id`, `role_id`)
 ) DEFAULT CHARSET=utf8;
