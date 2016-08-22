@@ -5,7 +5,8 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [funcool/clojure.jdbc "0.9.0"]
-                 [mysql/mysql-connector-java "6.0.3"]
+                 [hikari-cp "1.7.3"]
+                 [mysql/mysql-connector-java "5.1.39"]
                  [com.layerware/hugsql-core "0.4.7"]
                  [com.layerware/hugsql-adapter-clojure-jdbc "0.4.7"]
                  [buddy/buddy-hashers "0.14.0"]
