@@ -6,9 +6,14 @@ values (:username, :fullname, :email)
 delete from user
 where username = :username
 
+-- :name rename-user :! :n
+update user
+set username = :new-username
+where username = :username
+
 -- :name update-user :! :n
 update user
-set username = :username, fullname = :fullname, email = :email
+set fullname = :fullname, email = :email
 where username = :username
 
 -- :name update-encrypted-password :! :n

@@ -24,6 +24,9 @@
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
 
+(defn rename-user [conn {:keys [username new-username] :as user}]
+  (db-call :rename-user conn user))
+
 (defn update-user [conn {:keys [username fullname email] :as user}]
   (db-call :update-user conn user))
 
