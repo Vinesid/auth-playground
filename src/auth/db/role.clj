@@ -1,8 +1,7 @@
 (ns auth.db.role
-  (:require [jdbc.core :as jdbc]
-            [hugsql.core :as sql]
+  (:require [hugsql.core :as sql]
             [hugsql.adapter.clojure-jdbc :as cj-adapter]
-            [clojure.edn :as edn]))
+            [jdbc.core :as jdbc]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -29,3 +28,42 @@
 
 (defn delete-role [conn {:keys [name] :as tenant} {:keys [name] :as role}]
   (db-call :delete-role conn (assoc role :tenant-name (:name tenant))))
+
+(defn get-rights [conn]
+  (db-call :select-rights conn))
+
+(defn add-right [conn {:keys [name description] :as right}]
+  (db-call :insert-right conn right))
+
+(defn delete-right [conn {:keys [name] :as right}]
+  (db-call :delete-right conn right))
+
+(defn get-role-rights [conn tenant role]
+  (db-call :select-role-rights conn {:role-name (:name role)
+                                     :tenant-name (:name tenant)}))
+
+(defn set-role-right [conn tenant role right]
+  (jdbc/atomic
+    conn
+    (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
+                                               :role-name   (:name role)}))
+          right-id (:id (db-call :right-id conn right))]
+      (if (and role-id right-id)
+        (db-call :insert-role-right conn {:role-id  role-id
+                                          :right-id right-id})
+        0))))
+
+(defn unset-role-right [conn tenant role right]
+  (jdbc/atomic
+    conn
+    (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
+                                               :role-name   (:name role)}))
+          right-id (:id (db-call :right-id conn right))]
+      (if (and role-id right-id)
+        (db-call :delete-role-right conn {:role-id  role-id
+                                          :right-id right-id})
+        0))))
+
+
+
+
