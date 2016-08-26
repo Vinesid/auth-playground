@@ -3,7 +3,8 @@
             [hikari-cp.core :as cp]
             [jdbc.core :as jdbc]
             [auth.db.schema :as schema]
-            [auth.db.user :as u]))
+            [auth.db.user :as u]
+            [auth.db.tenant :as t]))
 
 (deftest auth-db-test
 
@@ -98,6 +99,41 @@
                    {:status :failed
                     :type   :validation
                     :cause  :exp})))))
+
+      (testing "Tenant Management"
+
+        (is (= (t/add-tenant conn {:name "t1" :config {:k1 :v1 :k2 :v2}})
+               1))
+
+        (is (= (t/add-tenant conn {:name "t2" :config {:k1 :v1 :k2 :v2}})
+               1))
+
+        (is (= (t/get-tenant conn {:name "t1"})
+               {:name "t1" :config {:k1 :v1 :k2 :v2}}))
+
+        (is (= (t/get-tenants conn)
+               [{:name "t1" :config {:k1 :v1 :k2 :v2}}
+                {:name "t2" :config {:k1 :v1 :k2 :v2}}]))
+
+        (is (= (t/rename-tenant conn {:name "t2" :new-name "t2n"})
+               1))
+
+        (is (not (t/get-tenant conn {:name "t2"})))
+
+        (is (= (t/get-tenant conn {:name "t2n"})
+               {:name "t2n" :config {:k1 :v1 :k2 :v2}}))
+
+        (is (= (t/set-tenant-config conn {:name "t2n" :config {:nk1 :v1 :nk2 :v2}})
+               1))
+
+        (is (= (t/get-tenant conn {:name "t2n"})
+               {:name "t2n" :config {:nk1 :v1 :nk2 :v2}}))
+
+        (is (= (t/delete-tenant conn {:name "t2n"})
+               1))
+
+        (is (not (t/get-tenant conn {:name "t2"})))))
+
 
       (catch Exception e
         (throw e))
