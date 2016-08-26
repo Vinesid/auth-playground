@@ -57,3 +57,25 @@ values (:tenant-id, :user-id)
 delete from tenant_user
 where tenant_id = :tenant-id
 and user_id = :user-id
+
+-- :name tenant-user-id :? :1
+select tu.id from tenant_user tu
+inner join tenant t on tu.tenant_id = t.id
+inner join user u on tu.user_id = u.id
+where u.username = :username
+and t.name = :tenant-name
+
+-- :name role-id :? :1
+select r.id from role r
+inner join tenant t on r.tenant_id = t.id
+where r.name = :role-name
+and t.name = :tenant-name
+
+-- :name insert-tenant-user-role :! :n
+insert into tenant_user_role (tenant_user_id, role_id)
+values (:tenant-user-id, :role-id)
+
+-- :name delete-tenant-user-role :! :n
+delete from tenant_user_role
+where tenant_user_id = :tenant-user-id
+and role_id = :role-id

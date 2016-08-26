@@ -98,5 +98,26 @@
                                            :user-id user-id})
         0))))
 
+(defn- role-params [conn user tenant role]
+  (let [tenant-user-id (:id (db-call :tenant-user-id conn {:username (:username user)
+                                                           :tenant-name (:name tenant)}))
+        role-id (:id (db-call :role-id conn {:role-name (:name role)
+                                             :tenant-name (:name tenant)}))]
+    (when (and tenant-user-id role-id)
+      {:tenant-user-id tenant-user-id
+       :role-id        role-id})))
 
+(defn add-to-role [conn user tenant role]
+  (jdbc/atomic
+    conn
+    (if-let [params (role-params conn user tenant role)]
+      (db-call :insert-tenant-user-role conn params)
+      0)))
+
+(defn remove-from-role [conn user tenant role]
+  (jdbc/atomic
+    conn
+    (if-let [params (role-params conn user tenant role)]
+      (db-call :delete-tenant-user-role conn params)
+      0)))
 
