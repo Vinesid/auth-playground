@@ -5,7 +5,7 @@
             [buddy.hashers :as hs]
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
-            [clj-time.core :refer [minutes from-now]]))
+            [clj-time.core :refer [seconds from-now]]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -49,7 +49,7 @@
       [false :invalid-password])
     [false :unknown-user]))
 
-(defn- change-password [conn {:keys [username password new-password]}]
+(defn change-password [conn {:keys [username password new-password]}]
   (jdbc/atomic conn
     (let [[valid? auth-result] (authenticate conn {:username username :password password})]
       (if valid?
@@ -62,11 +62,11 @@
   {:alg :dir
    :enc :a128cbc-hs256})
 
-(defn obtain-token [conn secret exp-minutes {:keys [username password] :as login}]
+(defn obtain-token [conn secret exp-seconds {:keys [username password] :as login}]
   (let [[valid? result] (authenticate conn login)]
     (if valid?
       (let [claim {:user (:user result)
-                   :exp (-> exp-minutes minutes from-now)}
+                   :exp (-> exp-seconds seconds from-now)}
             secret-key (hash/sha256 secret)
             token (jwt/encrypt claim secret-key encryption)]
         [true (assoc result :token token)])
