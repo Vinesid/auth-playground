@@ -20,20 +20,19 @@
         (String. b "UTF-8"))
       edn/read-string))
 
-(defn- ->tenant [rec]
+(defn ->tenant [rec]
   (update rec :config blob->edn))
 
 (defn get-tenant [conn {:keys [name]}]
   (some-> (db-call :select-tenant conn {:name name})
           ->tenant))
 
-(defn get-tenants
-  ([conn]
-   (->> (db-call :select-tenants conn)
-        (mapv ->tenant)))
-  ([conn {:keys [username] :as user}]
-   (->> (db-call :select-tenants-by-user conn user)
-        (mapv ->tenant))))
+(defn get-tenant-users [conn {:keys [name] :as tenant}]
+  (db-call :select-users-by-tenant conn tenant))
+
+(defn get-tenants [conn]
+  (->> (db-call :select-tenants conn)
+       (mapv ->tenant)))
 
 (defn edn->blob [e]
   (.getBytes (prn-str e) "UTF-8"))

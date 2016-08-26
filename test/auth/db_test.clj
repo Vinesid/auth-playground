@@ -132,8 +132,41 @@
         (is (= (t/delete-tenant conn {:name "t2n"})
                1))
 
-        (is (not (t/get-tenant conn {:name "t2"})))))
+        (is (not (t/get-tenant conn {:name "t2"}))))
 
+      (testing "Tenant User Management"
+
+        (is (= (u/assign-tenant conn {:username "u1"} {:name "t1"})
+               1))
+
+        (is (= (t/add-tenant conn {:name "t2" :config {:k1 :v1 :k2 :v2}})
+               1))
+
+        (is (= (u/assign-tenant conn {:username "u1"} {:name "t2"})
+               1))
+
+        (is (= (u/get-user-tenants conn {:username "u1"})
+               [{:name "t1" :config {:k1 :v1 :k2 :v2}}
+                {:name "t2" :config {:k1 :v1 :k2 :v2}}]))
+
+        (is (= (u/unassign-tenant conn {:username "u1"} {:name "t2"})
+               1))
+
+        (is (= (u/get-user-tenants conn {:username "u1"})
+               [{:name "t1" :config {:k1 :v1 :k2 :v2}}]))
+
+        (is (= (t/get-tenant-users conn {:name "t1"})
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}]))
+
+        (is (= (u/add-user conn {:username "u2" :fullname "u2fn" :email "u2@email.com"})
+               1))
+
+        (is (= (u/assign-tenant conn {:username "u2"} {:name "t1"})
+               1))
+
+        (is (= (t/get-tenant-users conn {:name "t1"})
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}
+                {:username "u2" :fullname "u2fn" :email "u2@email.com"}])))
 
       (catch Exception e
         (throw e))

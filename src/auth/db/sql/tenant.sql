@@ -6,13 +6,6 @@ where name = :name
 select name, config from tenant
 order by name
 
--- :name select-tenants-by-user :? :n
-select t.name, t.config from tenant t
-inner join tenant_user tu on t.id = tu.tenant_id
-inner join user u on tu.user_id = u.id
-where u.username = :username
-order by name
-
 -- :name insert-tenant :! :n
 insert into tenant (name, config)
 values (:name, :config)
@@ -30,5 +23,12 @@ where name = :name
 -- :name delete-tenant :! :n
 delete from tenant
 where name = :name
+
+-- :name select-users-by-tenant :? :n
+select username, fullname, email from user u
+inner join tenant_user tu on u.id = tu.user_id
+inner join tenant t on tu.tenant_id = t.id
+where t.name = :name
+order by username
 
 

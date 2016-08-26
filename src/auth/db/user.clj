@@ -5,7 +5,8 @@
             [buddy.hashers :as hs]
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
-            [clj-time.core :refer [seconds from-now]]))
+            [clj-time.core :refer [seconds from-now]]
+            [auth.db.tenant :as t]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -18,11 +19,8 @@
 (defn get-user [conn {:keys [username]}]
   (db-call :select-user conn {:username username}))
 
-(defn get-users
-  ([conn]
-   (db-call :select-users conn))
-  ([conn {:keys [name] :as tenant}]
-   (db-call :select-users-by-tenant conn tenant)))
+(defn get-users [conn]
+  (db-call :select-users conn))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
@@ -101,6 +99,10 @@
         (db-call :delete-tenant-user conn {:tenant-id tenant-id
                                            :user-id user-id})
         0))))
+
+(defn get-user-tenants [conn {:keys [username] :as user}]
+  (->> (db-call :select-tenants-by-user conn user)
+       (mapv t/->tenant)))
 
 (defn- role-params [conn user tenant role]
   (let [tenant-user-id (:id (db-call :tenant-user-id conn {:username (:username user)

@@ -34,13 +34,6 @@ order by username
 select username, fullname, email from user
 order by username
 
--- :name select-users-by-tenant :? :n
-select username, fullname, email, password from user u
-inner join tenant_user tu on u.id = tu.user_id
-inner join tenant t on tu.tenant_id = t.id
-where t.name = :name
-order by username
-
 -- :name user-id :? :1
 select id from user
 where username = :username
@@ -57,6 +50,13 @@ values (:tenant-id, :user-id)
 delete from tenant_user
 where tenant_id = :tenant-id
 and user_id = :user-id
+
+-- :name select-tenants-by-user :? :n
+select t.name, t.config from tenant t
+inner join tenant_user tu on t.id = tu.tenant_id
+inner join user u on tu.user_id = u.id
+where u.username = :username
+order by name
 
 -- :name tenant-user-id :? :1
 select tu.id from tenant_user tu
