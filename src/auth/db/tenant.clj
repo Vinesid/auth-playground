@@ -2,7 +2,8 @@
   (:require [jdbc.core :as jdbc]
             [hugsql.core :as sql]
             [hugsql.adapter.clojure-jdbc :as cj-adapter]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn])
+  (:import [org.h2.jdbc JdbcBlob]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -12,8 +13,14 @@
 (defn- db-call [fn-name & args]
   (apply (get-in db-fns [fn-name :fn]) args))
 
+(defn blob-string [b]
+  (if (= (type b) JdbcBlob)
+    (-> (.getBinaryStream b)
+        (slurp "UTF-8"))
+    (String. b "UTF-8")))
+
 (defn- ->tenant [rec]
-  (update rec :config edn/read-string))
+  (update rec :config #(edn/read-string (blob-string %))))
 
 (defn get-tenant [conn {:keys [name]}]
   (some-> (db-call :select-tenant conn {:name name})
@@ -29,7 +36,7 @@
 
 (defn add-tenant [conn {:keys [name config]}]
   (db-call :insert-tenant conn {:name   name
-                                :config (prn-str config)}))
+                                :config (.getBytes (prn-str config) "UTF-8")}))
 
 (defn rename-tenant [conn {:keys [name new-name] :as naming}]
   (db-call :rename-tenant conn naming))

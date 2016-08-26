@@ -17,7 +17,7 @@ CREATE TABLE `user` (
 CREATE TABLE `tenant` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
-  `config` text,
+  `config` blob,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `idx_tenant_name` (`name`)
 ) DEFAULT CHARSET=utf8;
