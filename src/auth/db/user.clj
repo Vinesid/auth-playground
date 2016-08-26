@@ -40,7 +40,7 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password (hs/derive password)}))
 
-(defn auth [conn {:keys [username password]}]
+(defn authenticate [conn {:keys [username password]}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
@@ -51,7 +51,7 @@
 
 (defn- change-password [conn {:keys [username password new-password]}]
   (jdbc/atomic conn
-    (let [[valid? auth-result] (auth conn {:username username :password password})]
+    (let [[valid? auth-result] (authenticate conn {:username username :password password})]
       (if valid?
         (if (= 1 (set-password conn {:username username :password new-password}))
           [true]
@@ -62,8 +62,8 @@
   {:alg :dir
    :enc :a128cbc-hs256})
 
-(defn get-token [conn secret exp-minutes {:keys [username password] :as login}]
-  (let [[valid? result] (auth conn login)]
+(defn obtain-token [conn secret exp-minutes {:keys [username password] :as login}]
+  (let [[valid? result] (authenticate conn login)]
     (if valid?
       (let [claim {:user (:user result)
                    :exp (-> exp-minutes minutes from-now)}
@@ -72,13 +72,13 @@
         [true (assoc result :token token)])
       [false result])))
 
-(defn auth-token [secret token]
+(defn authenticate-token [secret token]
   (try
     [true (jwt/decrypt token (hash/sha256 secret) encryption)]
     (catch Exception e
       [false (ex-data e)])))
 
-(defn add-to-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
+(defn assign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
   (jdbc/atomic
     conn
     (let [user-id (:id (db-call :user-id conn user))
@@ -88,7 +88,7 @@
                                            :user-id user-id})
         0))))
 
-(defn remove-from-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
+(defn unassign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
   (jdbc/atomic
     conn
     (let [user-id (:id (db-call :user-id conn user))
@@ -107,14 +107,14 @@
       {:tenant-user-id tenant-user-id
        :role-id        role-id})))
 
-(defn add-to-role [conn user tenant role]
+(defn assign-role [conn user tenant role]
   (jdbc/atomic
     conn
     (if-let [params (role-params conn user tenant role)]
       (db-call :insert-tenant-user-role conn params)
       0)))
 
-(defn remove-from-role [conn user tenant role]
+(defn unassign-role [conn user tenant role]
   (jdbc/atomic
     conn
     (if-let [params (role-params conn user tenant role)]
