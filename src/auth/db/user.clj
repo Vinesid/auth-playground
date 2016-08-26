@@ -45,38 +45,42 @@
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
-      [true {:user (dissoc user :password)}]
-      [false :invalid-password])
-    [false :unknown-user]))
+      {:status :success
+       :user (dissoc user :password)}
+      {:status :failed
+       :cause  :invalid-password})
+    {:status :failed
+     :cause  :unknown-user}))
 
 (defn change-password [conn {:keys [username password new-password]}]
   (jdbc/atomic conn
-    (let [[valid? auth-result] (authenticate conn {:username username :password password})]
-      (if valid?
+    (let [auth-result (authenticate conn {:username username :password password})]
+      (if (= (:status auth-result) :success)
         (if (= 1 (set-password conn {:username username :password new-password}))
-          [true]
-          [false :failed])
-        [false auth-result]))))
+          {:status :success}
+          {:status :failed})
+        auth-result))))
 
 (def ^:private encryption
   {:alg :dir
    :enc :a128cbc-hs256})
 
 (defn obtain-token [conn secret exp-seconds {:keys [username password] :as login}]
-  (let [[valid? result] (authenticate conn login)]
-    (if valid?
-      (let [claim {:user (:user result)
+  (let [auth-result (authenticate conn login)]
+    (if (= (:status auth-result) :success)
+      (let [claim {:user (:user auth-result)
                    :exp (-> exp-seconds seconds from-now)}
             secret-key (hash/sha256 secret)
             token (jwt/encrypt claim secret-key encryption)]
-        [true (assoc result :token token)])
-      [false result])))
+        (assoc auth-result :token token))
+      auth-result)))
 
 (defn authenticate-token [secret token]
   (try
-    [true (jwt/decrypt token (hash/sha256 secret) encryption)]
+    (assoc (jwt/decrypt token (hash/sha256 secret) encryption)
+      :status :success)
     (catch Exception e
-      [false (ex-data e)])))
+      (assoc (ex-data e) :status :failed))))
 
 (defn assign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
   (jdbc/atomic

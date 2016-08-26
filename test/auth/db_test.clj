@@ -60,41 +60,44 @@
             1)
 
         (is (u/authenticate conn {:username "u1" :password "p1"})
-            [true {:username "u1" :fullname "u1fn" :email "u1@email.com"}])
+            {:status :success
+             :user   {:username "u1" :fullname "u1fn" :email "u1@email.com"}})
 
         (is (u/authenticate conn {:username "ux" :password "p1"})
-            [false :unknown-user])
+            {:status :failed
+             :cause  :unknown-user})
 
         (is (u/authenticate conn {:username "u1" :password "px"})
-            [false :invalid-password])
+            {:status :failed
+             :cause  :invalid-password})
 
         (is (u/change-password conn {:username "u1" :password "p1" :new-password "pn"})
-            [true])
+            {:status :success})
 
         (let [expire-seconds 5
               secret "server-hmac-secret"
-              [valid? result] (u/obtain-token conn secret expire-seconds {:username "u1" :password "pn"})]
+              result (u/obtain-token conn secret expire-seconds {:username "u1" :password "pn"})]
 
-          (is valid?)
+          (is (= (:status result) :success))
 
           (is (= (:user result)
                  {:username "u1" :fullname "u1fn" :email "u1@email.com"}))
 
-          (let [[valid-token? result] (u/authenticate-token secret (:token result))]
+          (let [result (u/authenticate-token secret (:token result))]
 
-            (is valid-token?)
+            (is (= (:status result) :success))
 
             (is (= (:user result)
                    {:username "u1" :fullname "u1fn" :email "u1@email.com"})))
 
-          (let [[valid-token? result] (do
-                                        (Thread/sleep (* expire-seconds 1000 1.2))
-                                        (u/authenticate-token secret (:token result)))]
-
-            (is (not valid-token?))
+          (let [result (do
+                         (Thread/sleep (* expire-seconds 1000 1.2))
+                         (u/authenticate-token secret (:token result)))]
 
             (is (= result
-                   {:type :validation, :cause :exp})))))
+                   {:status :failed
+                    :type   :validation
+                    :cause  :exp})))))
 
       (catch Exception e
         (throw e))
