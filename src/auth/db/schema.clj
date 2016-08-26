@@ -15,3 +15,5 @@
   (mysql-create-capability-table conn)
   (mysql-create-role-capability-table conn)
   (mysql-create-tenant-user-role-table conn))
+
+(def h2-create-tables mysql-create-tables)
