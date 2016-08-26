@@ -29,39 +29,39 @@
 (defn delete-role [conn {:keys [name] :as tenant} {:keys [name] :as role}]
   (db-call :delete-role conn (assoc role :tenant-name (:name tenant))))
 
-(defn get-rights [conn]
-  (db-call :select-rights conn))
+(defn get-capabilities [conn]
+  (db-call :select-capabilities conn))
 
-(defn add-right [conn {:keys [name description] :as right}]
-  (db-call :insert-right conn right))
+(defn add-capability [conn {:keys [name description] :as capability}]
+  (db-call :insert-capability conn capability))
 
-(defn delete-right [conn {:keys [name] :as right}]
-  (db-call :delete-right conn right))
+(defn delete-capability [conn {:keys [name] :as capability}]
+  (db-call :delete-capability conn capability))
 
-(defn get-role-rights [conn tenant role]
-  (db-call :select-role-rights conn {:role-name (:name role)
-                                     :tenant-name (:name tenant)}))
+(defn get-role-capabilities [conn tenant role]
+  (db-call :select-role-capabilities conn {:role-name (:name role)
+                                           :tenant-name (:name tenant)}))
 
-(defn set-role-right [conn tenant role right]
+(defn set-role-capability [conn tenant role capability]
   (jdbc/atomic
     conn
     (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
                                                :role-name   (:name role)}))
-          right-id (:id (db-call :right-id conn right))]
-      (if (and role-id right-id)
-        (db-call :insert-role-right conn {:role-id  role-id
-                                          :right-id right-id})
+          capability-id (:id (db-call :capability-id conn capability))]
+      (if (and role-id capability-id)
+        (db-call :insert-role-capability conn {:role-id  role-id
+                                               :capability-id capability-id})
         0))))
 
-(defn unset-role-right [conn tenant role right]
+(defn unset-role-capability [conn tenant role capability]
   (jdbc/atomic
     conn
     (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
                                                :role-name   (:name role)}))
-          right-id (:id (db-call :right-id conn right))]
-      (if (and role-id right-id)
-        (db-call :delete-role-right conn {:role-id  role-id
-                                          :right-id right-id})
+          capability-id (:id (db-call :capability-id conn capability))]
+      (if (and role-id capability-id)
+        (db-call :delete-role-capability conn {:role-id  role-id
+                                               :capability-id capability-id})
         0))))
 
 

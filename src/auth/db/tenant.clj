@@ -34,7 +34,7 @@
 (defn rename-tenant [conn {:keys [name new-name] :as naming}]
   (db-call :rename-tenant conn naming))
 
-(defn update-tenant-config [conn {:keys [name config]}]
+(defn set-tenant-config [conn {:keys [name config]}]
   (db-call :update-tenant conn {:name   name
                                 :config (prn-str config)}))
 

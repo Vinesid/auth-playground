@@ -45,10 +45,10 @@ CREATE TABLE `role` (
   UNIQUE INDEX `tenant_name` (`tenant_id`, `name`)
 ) DEFAULT CHARSET=utf8;
 
--- :name mysql-create-right-table
+-- :name mysql-create-capability-table
 -- :command :execute
 -- :result :raw
-CREATE TABLE `right` (
+CREATE TABLE `capability` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `description` text,
@@ -56,13 +56,13 @@ CREATE TABLE `right` (
   UNIQUE INDEX`name` (`name`)
 ) DEFAULT CHARSET=utf8;
 
--- :name mysql-create-role-right-table
+-- :name mysql-create-role-capability-table
 -- :command :execute
 -- :result :raw
-CREATE TABLE `role_right` (
+CREATE TABLE `role_capability` (
   `id` int NOT NULL AUTO_INCREMENT,
   `role_id` int,
-  `right_id` int,
+  `capability_id` int,
   PRIMARY KEY (`id`)
 ) DEFAULT CHARSET=utf8;
 

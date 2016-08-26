@@ -13,6 +13,6 @@
     (mysql-create-tenant-table conn)
     (mysql-create-tenant-user-table conn)
     (mysql-create-role-table conn)
-    (mysql-create-right-table conn)
+    (mysql-create-capability-table conn)
     (mysql-create-role-right-table conn)
     (mysql-create-tenant-user-role-table conn)))

@@ -29,15 +29,15 @@ delete r from role r
 inner join tenant t on r.tenant_id = t.id
 where r.name = :name and t.name = :tenant-name
 
--- :name select-rights :? :n
-select name, description from `right`
+-- :name select-capabilities :? :n
+select name, description from capability
 
--- :name insert-right :! :n
-insert into `right` (name, description)
+-- :name insert-capability :! :n
+insert into capability (name, description)
 values (:name, :description)
 
--- :name delete-right :! :n
-delete from `right`
+-- :name delete-capability :! :n
+delete from capability
 where name = :name
 
 -- :name role-id :? :1
@@ -46,21 +46,21 @@ inner join tenant t on r.tenant_id = t.id
 where t.name = :tenant-name
 and r.name = :role-name
 
--- :name right-id :? :1
-select id from `right`
+-- :name capability-id :? :1
+select id from capability
 where name = :name
 
--- :name insert-role-right :! :n
-insert into role_right (role_id, right_id)
-values (:role-id, :right-id)
+-- :name insert-role-capability :! :n
+insert into role_capability (role_id, capability_id)
+values (:role-id, :capability-id)
 
--- :name delete-role-right :! :n
-delete from role_right
-where role_id = :role-id and right_id = :right-id
+-- :name delete-role-capability :! :n
+delete from role_capability
+where role_id = :role-id and capability_id = :capability-id
 
--- :name select-role-rights :? :n
-select ri.name, ri.description from `right` ri
-inner join role_right rr on ri.id = rr.right_id
+-- :name select-role-capabilities :? :n
+select ri.name, ri.description from capability ri
+inner join role_capability rr on ri.id = rr.capability_id
 inner join role r on rr.role_id = r.id
 inner join tenant t on r.tenant_id = t.id
 where t.name = :tenant-name

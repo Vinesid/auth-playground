@@ -30,7 +30,7 @@
 (defn rename-user [conn {:keys [username new-username] :as naming}]
   (db-call :rename-user conn naming))
 
-(defn update-user-info [conn {:keys [username fullname email] :as user}]
+(defn set-user-info [conn {:keys [username fullname email] :as user}]
   (db-call :update-user conn user))
 
 (defn delete-user [conn {:keys [username]}]
