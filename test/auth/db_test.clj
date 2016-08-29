@@ -193,32 +193,37 @@
         (is (= (r/add-role conn {:name "t2"} {:name "r1" :description "t2 role r1"})
                1))
 
+        (is (= (r/get-role conn {:name "t1"} {:name "r1"})
+               {:name "r1"
+                :description "t1 role r1"
+                :capabilities []}))
+
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r1" :description "t1 role r1"}
-                {:name "r2" :description "t1 role r2"}]))
+               [{:name "r1" :description "t1 role r1" :capabilities []}
+                {:name "r2" :description "t1 role r2" :capabilities []}]))
 
         (is (= (r/get-roles conn {:name "t2"})
-               [{:name "r1" :description "t2 role r1"}]))
+               [{:name "r1" :description "t2 role r1" :capabilities []}]))
 
         (is (= (r/rename-role conn {:name "t1"} {:name "r1" :new-name "r1n"})
                1))
 
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r1n" :description "t1 role r1"}
-                {:name "r2" :description "t1 role r2"}]))
+               [{:name "r1n" :description "t1 role r1" :capabilities []}
+                {:name "r2" :description "t1 role r2" :capabilities []}]))
 
         (is (= (r/set-role-description conn {:name "t1"} {:name "r1n" :description "t1 role r1n"})
                1))
 
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r1n" :description "t1 role r1n"}
-                {:name "r2" :description "t1 role r2"}]))
+               [{:name "r1n" :description "t1 role r1n" :capabilities []}
+                {:name "r2" :description "t1 role r2" :capabilities []}]))
 
         (is (= (r/delete-role conn {:name "t1"} {:name "r1n"})
                1))
 
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r2" :description "t1 role r2"}])))
+               [{:name "r2" :description "t1 role r2" :capabilities []}])))
 
       (testing "Capability Management"
 
@@ -259,7 +264,21 @@
                1))
 
         (is (= (r/get-role-capabilities conn {:name "t1"} {:name "r2"})
-               [{:name "cap2" :description "cap2 desc"}])))
+               [{:name "cap2" :description "cap2 desc"}]))
+
+        (is (= (r/get-role conn {:name "t1"} {:name "r2"})
+               {:name "r2"
+                :description "t1 role r2"
+                :capabilities [{:name "cap2" :description "cap2 desc"}]}))
+
+        (is (= (r/get-roles conn {:name "t1"})
+               [{:name "r1n"
+                 :description "t1 role r1n"
+                 :capabilities []}
+                {:name "r2"
+                 :description "t1 role r2"
+                 :capabilities [{:name "cap2", :description "cap2 desc"}]}]))
+        )
 
       (catch Exception e
         (throw e))

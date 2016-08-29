@@ -1,8 +1,14 @@
 -- :name select-roles :? :n
-select r.name, r.description from role r
+select r.name from role r
 inner join tenant t on r.tenant_id = t.id
 where t.name = :name
 order by r.name
+
+-- :name select-role :? :1
+select r.name, r.description from role r
+inner join tenant t on r.tenant_id = t.id
+where t.name = :tenant-name
+and r.name = :name
 
 -- :name tenant-id :? :1
 select id from tenant
