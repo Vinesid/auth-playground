@@ -123,11 +123,11 @@
                1))
 
         (is (= (t/get-tenant conn {:name "t1"})
-               {:name "t1" :config {:k1 :v1 :k2 :v2}}))
+               {:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}))
 
         (is (= (t/get-tenants conn)
-               [{:name "t1" :config {:k1 :v1 :k2 :v2}}
-                {:name "t2" :config {:k1 :v1 :k2 :v2}}]))
+               [{:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}
+                {:name "t2" :config {:k1 :v1 :k2 :v2} :roles []}]))
 
         (is (= (t/rename-tenant conn {:name "t2" :new-name "t2n"})
                1))
@@ -135,13 +135,13 @@
         (is (not (t/get-tenant conn {:name "t2"})))
 
         (is (= (t/get-tenant conn {:name "t2n"})
-               {:name "t2n" :config {:k1 :v1 :k2 :v2}}))
+               {:name "t2n" :config {:k1 :v1 :k2 :v2} :roles []}))
 
         (is (= (t/set-tenant-config conn {:name "t2n" :config {:nk1 :v1 :nk2 :v2}})
                1))
 
         (is (= (t/get-tenant conn {:name "t2n"})
-               {:name "t2n" :config {:nk1 :v1 :nk2 :v2}}))
+               {:name "t2n" :config {:nk1 :v1 :nk2 :v2} :roles []}))
 
         (is (= (t/delete-tenant conn {:name "t2n"})
                1))
@@ -160,14 +160,14 @@
                1))
 
         (is (= (u/get-user-tenants conn {:username "u1"})
-               [{:name "t1" :config {:k1 :v1 :k2 :v2}}
-                {:name "t2" :config {:k1 :v1 :k2 :v2}}]))
+               [{:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}
+                {:name "t2" :config {:k1 :v1 :k2 :v2} :roles []}]))
 
         (is (= (u/unassign-tenant conn {:username "u1"} {:name "t2"})
                1))
 
         (is (= (u/get-user-tenants conn {:username "u1"})
-               [{:name "t1" :config {:k1 :v1 :k2 :v2}}]))
+               [{:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}]))
 
         (is (= (t/get-tenant-users conn {:name "t1"})
                [{:username "u1" :fullname "u1fn" :email "u1@email.com"}]))
@@ -272,12 +272,16 @@
                 :capabilities [{:name "cap2" :description "cap2 desc"}]}))
 
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r1n"
-                 :description "t1 role r1n"
-                 :capabilities []}
-                {:name "r2"
+               [{:name "r2"
                  :description "t1 role r2"
                  :capabilities [{:name "cap2", :description "cap2 desc"}]}]))
+
+        (is (= (t/get-tenant conn {:name "t1"})
+               {:name "t1" :config {:k1 :v1 :k2 :v2}
+                :roles [{:name "r2"
+                         :description "t1 role r2"
+                         :capabilities [{:name "cap2"
+                                         :description "cap2 desc"}]}]}))
         )
 
       (catch Exception e

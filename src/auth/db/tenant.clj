@@ -2,7 +2,8 @@
   (:require [jdbc.core :as jdbc]
             [hugsql.core :as sql]
             [hugsql.adapter.clojure-jdbc :as cj-adapter]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [auth.db.role :as r])
   (:import [org.h2.jdbc JdbcBlob]))
 
 (def ^:private db-fns
@@ -20,19 +21,23 @@
         (String. b "UTF-8"))
       edn/read-string))
 
-(defn ->tenant [rec]
-  (update rec :config blob->edn))
+(defn ->tenant [conn rec]
+  (-> rec
+      (update :config blob->edn)
+      (assoc :roles (r/get-roles conn {:name (:name rec)}))))
 
 (defn get-tenant [conn {:keys [name]}]
-  (some-> (db-call :select-tenant conn {:name name})
-          ->tenant))
+  (jdbc/atomic
+    conn
+    (some->> (db-call :select-tenant conn {:name name})
+             (->tenant conn))))
 
 (defn get-tenant-users [conn {:keys [name] :as tenant}]
   (db-call :select-users-by-tenant conn tenant))
 
 (defn get-tenants [conn]
   (->> (db-call :select-tenants conn)
-       (mapv ->tenant)))
+       (mapv #(->tenant conn %))))
 
 (defn edn->blob [e]
   (.getBytes (prn-str e) "UTF-8"))

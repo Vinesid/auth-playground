@@ -128,7 +128,7 @@
 
 (defn get-user-tenants [conn {:keys [username] :as user}]
   (->> (db-call :select-tenants-by-user conn user)
-       (mapv t/->tenant)))
+       (mapv #(t/->tenant conn %))))
 
 (defn- role-params [conn user tenant role]
   (let [tenant-user-id (:id (db-call :tenant-user-id conn {:username (:username user)
