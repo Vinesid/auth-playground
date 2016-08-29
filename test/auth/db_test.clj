@@ -56,7 +56,7 @@
         (is (= (u/get-users conn)
                [{:username "u1" :fullname "u1fn" :email "u1@email.com"}])))
 
-      #_(testing "User Authentication"
+      (testing "User Authentication"
 
         (is (u/set-password conn {:username "u1" :password "p1"})
             1)
