@@ -98,7 +98,16 @@
             (is (= result
                    {:status :failed
                     :type   :validation
-                    :cause  :exp})))))
+                    :cause  :exp}))))
+
+        (let [reset-token (u/obtain-reset-token conn "secret" 1 {:username "u1"})
+              reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
+              exp-reset (do
+                          (Thread/sleep 1200)
+                          (u/reset-password conn "secret" {:new-password "np" :token reset-token}))]
+
+          (is (= (:status reset) :success))
+          (is (= (:status exp-reset) :failed))))
 
       (testing "Tenant Management"
 

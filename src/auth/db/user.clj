@@ -38,6 +38,10 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password (hs/derive password)}))
 
+(defn disable-password [conn {:keys [username]}]
+  (db-call :update-encrypted-password conn {:username username
+                                            :password ""}))
+
 (defn authenticate [conn {:keys [username password]}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
@@ -79,6 +83,24 @@
       :status :success)
     (catch Exception e
       (assoc (ex-data e) :status :failed))))
+
+(defn obtain-reset-token [conn secret exp-seconds {:keys [username] :as user}]
+  (if-let [user (get-user conn user)]
+    (let [claim {:reset user
+                 :exp   (-> exp-seconds seconds from-now)}
+          secret-key (hash/sha256 secret)]
+      (jwt/encrypt claim secret-key encryption))
+    {:status :failed
+     :cause :unknown-user}))
+
+(defn reset-password [conn secret {:keys [token new-password]}]
+  (let [result (authenticate-token secret token)]
+    (if (= (:status result) :success)
+      (if (= 1 (set-password conn {:username (get-in result [:reset :username])
+                                   :password new-password}))
+        {:status :success}
+        {:status :failed})
+      result)))
 
 (defn assign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]
   (jdbc/atomic
