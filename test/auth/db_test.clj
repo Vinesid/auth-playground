@@ -30,23 +30,23 @@
                1))
 
         (is (= (u/get-user conn {:username "u1"})
-               {:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}))
+               {:username "u1" :fullname "u1fn" :email "u1@email.com" :tenant-roles {}}))
 
         (is (= (u/get-users conn)
-               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}
-                {:username "u2" :fullname "u2fn" :email "u2@email.com" :tenants []}]))
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenant-roles {}}
+                {:username "u2" :fullname "u2fn" :email "u2@email.com" :tenant-roles {}}]))
 
         (is (= (u/rename-user conn {:username "u2" :new-username "u2n"})
                1))
 
         (is (= (u/get-user conn {:username "u2n"})
-               {:username "u2n" :fullname "u2fn" :email "u2@email.com" :tenants []}))
+               {:username "u2n" :fullname "u2fn" :email "u2@email.com" :tenant-roles {}}))
 
         (is (= (u/set-user-info conn {:username "u2n" :fullname "u2nfn" :email "u2n@email.com"})
                1))
 
         (is (= (u/get-user conn {:username "u2n"})
-               {:username "u2n" :fullname "u2nfn" :email "u2n@email.com" :tenants []}))
+               {:username "u2n" :fullname "u2nfn" :email "u2n@email.com" :tenant-roles {}}))
 
         (is (= (u/delete-user conn {:username "u2n"})
                1))
@@ -54,7 +54,7 @@
         (is (not (u/get-user conn {:username "u2n"})))
 
         (is (= (u/get-users conn)
-               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}])))
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenant-roles {}}])))
 
       (testing "User Authentication"
 
@@ -153,21 +153,23 @@
         (is (= (u/assign-tenant conn {:username "u1"} {:name "t1"})
                1))
 
+        (is (= (t/get-tenant-users conn {:name "t1"})
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}]))
+
         (is (= (t/add-tenant conn {:name "t2" :config {:k1 :v1 :k2 :v2}})
                1))
 
         (is (= (u/assign-tenant conn {:username "u1"} {:name "t2"})
                1))
 
-        (is (= (u/get-user-tenants conn {:username "u1"})
-               [{:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}
-                {:name "t2" :config {:k1 :v1 :k2 :v2} :roles []}]))
+        (is (= (t/get-tenant-users conn {:name "t2"})
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}]))
 
         (is (= (u/unassign-tenant conn {:username "u1"} {:name "t2"})
                1))
 
-        (is (= (u/get-user-tenants conn {:username "u1"})
-               [{:name "t1" :config {:k1 :v1 :k2 :v2} :roles []}]))
+        (is (= (t/get-tenant-users conn {:name "t2"})
+               []))
 
         (is (= (t/get-tenant-users conn {:name "t1"})
                [{:username "u1" :fullname "u1fn" :email "u1@email.com"}]))
@@ -281,8 +283,18 @@
                 :roles [{:name "r2"
                          :description "t1 role r2"
                          :capabilities [{:name "cap2"
-                                         :description "cap2 desc"}]}]}))
-        )
+                                         :description "cap2 desc"}]}]})))
+
+      (testing "User Role Management"
+
+        (is (= (u/assign-role conn {:username "u1"} {:name "t1"} {:name "r2"})
+               1))
+
+        (is (= (u/get-user conn {:username "u1"})
+               {:username "u1"
+                :fullname "u1fn"
+                :email "u1@email.com"
+                :tenant-roles {"t1" ["r2"]}})))
 
       (catch Exception e
         (throw e))

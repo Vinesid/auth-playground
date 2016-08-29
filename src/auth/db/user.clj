@@ -5,8 +5,7 @@
             [buddy.hashers :as hs]
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
-            [clj-time.core :refer [seconds from-now]]
-            [auth.db.tenant :as t]))
+            [clj-time.core :refer [seconds from-now]]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -16,20 +15,25 @@
 (defn- db-call [fn-name & args]
   (apply (get-in db-fns [fn-name :fn]) args))
 
-(defn get-user-tenants [conn {:keys [username] :as user}]
-  (->> (db-call :select-tenants-by-user conn user)
-       (mapv #(t/->tenant conn %))))
+(defn- get-tenant-roles [conn {:keys [username] :as user}]
+  (reduce (fn [tenants tenant]
+            (let [tuid (:id (db-call :tenant-user-id conn {:username username
+                                                           :tenant-name (:name tenant)}))
+                  roles (mapv :name (db-call :select-tenant-user-roles conn {:tenant-user-id tuid}))]
+              (assoc tenants (:name tenant) roles)))
+          {}
+          (db-call :select-tenants-by-user conn user)))
 
 (defn get-user [conn {:keys [username]}]
   (jdbc/atomic
     conn
     (when-let [user (db-call :select-user conn {:username username})]
-      (assoc user :tenants (get-user-tenants conn user)))))
+      (assoc user :tenant-roles (get-tenant-roles conn user)))))
 
 (defn get-users [conn]
   (jdbc/atomic
     conn
-    (mapv #(assoc % :tenants (get-user-tenants conn %))
+    (mapv #(assoc % :tenant-roles (get-tenant-roles conn %))
           (db-call :select-users conn))))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]

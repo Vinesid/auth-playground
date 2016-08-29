@@ -61,7 +61,7 @@ where tenant_id = :tenant-id
 and user_id = :user-id
 
 -- :name select-tenants-by-user :? :n
-select t.name, t.config from tenant t
+select t.name from tenant t
 inner join tenant_user tu on t.id = tu.tenant_id
 inner join user u on tu.user_id = u.id
 where u.username = :username
@@ -88,3 +88,8 @@ values (:tenant-user-id, :role-id)
 delete from tenant_user_role
 where tenant_user_id = :tenant-user-id
 and role_id = :role-id
+
+-- :name select-tenant-user-roles :? :n
+select r.name from role r
+inner join tenant_user_role tur on r.id = tur.role_id
+where tur.id = :tenant-user-id
