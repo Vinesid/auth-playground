@@ -89,17 +89,21 @@
     (let [claim {:reset user
                  :exp   (-> exp-seconds seconds from-now)}
           secret-key (hash/sha256 secret)]
-      (jwt/encrypt claim secret-key encryption))
+      (if (= 1 (db-call :set-user-reset conn {:username username :reset? true}))
+        (jwt/encrypt claim secret-key encryption)
+        {:status :failed}))
     {:status :failed
      :cause :unknown-user}))
 
 (defn reset-password [conn secret {:keys [token new-password]}]
   (let [result (authenticate-token secret token)]
     (if (= (:status result) :success)
-      (if (= 1 (set-password conn {:username (get-in result [:reset :username])
-                                   :password new-password}))
-        {:status :success}
-        {:status :failed})
+      (let [reset? (:reset (db-call :select-user-reset conn (:reset result)))]
+        (if (and reset?
+                 (= 1 (set-password conn {:username (get-in result [:reset :username])
+                                          :password new-password})))
+          {:status :success}
+          {:status :failed}))
       result)))
 
 (defn assign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]

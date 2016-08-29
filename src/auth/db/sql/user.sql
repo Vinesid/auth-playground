@@ -18,7 +18,16 @@ where username = :username
 
 -- :name update-encrypted-password :! :n
 update user
-set password = :password
+set password = :password, reset = false
+where username = :username
+
+-- :name set-user-reset :! :n
+update user
+set reset = :reset?
+where username = :username
+
+-- :name select-user-reset :? :1
+select reset from user
 where username = :username
 
 -- :name select-user :? :1

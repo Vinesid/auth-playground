@@ -75,7 +75,7 @@
         (is (u/change-password conn {:username "u1" :password "p1" :new-password "pn"})
             {:status :success})
 
-        (let [expire-seconds 5
+        (let [expire-seconds 1
               secret "server-hmac-secret"
               result (u/obtain-token conn secret expire-seconds {:username "u1" :password "pn"})]
 
@@ -100,14 +100,18 @@
                     :type   :validation
                     :cause  :exp}))))
 
-        (let [reset-token (u/obtain-reset-token conn "secret" 1 {:username "u1"})
+        (let [expire-seconds 2
+              reset-token (u/obtain-reset-token conn "secret" expire-seconds {:username "u1"})
               reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
+              snd-reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
               exp-reset (do
-                          (Thread/sleep 1200)
+                          (Thread/sleep (* expire-seconds 1000 1.2))
                           (u/reset-password conn "secret" {:new-password "np" :token reset-token}))]
-
           (is (= (:status reset) :success))
-          (is (= (:status exp-reset) :failed))))
+          (is (= snd-reset {:status :failed}))
+          (is (= exp-reset {:status :failed
+                            :type   :validation
+                            :cause  :exp}))))
 
       (testing "Tenant Management"
 

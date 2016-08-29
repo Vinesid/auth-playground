@@ -7,6 +7,7 @@ CREATE TABLE `user` (
   `fullname` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255),
+  `reset` boolean,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `idx_user_username` (`username`)
 ) DEFAULT CHARSET=utf8;
