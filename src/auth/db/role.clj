@@ -21,13 +21,22 @@
       0)))
 
 (defn rename-role [conn {:keys [name] :as tenant} {:keys [name new-name] :as naming}]
-  (db-call :rename-role conn (assoc naming :tenant-name (:name tenant))))
+  (jdbc/atomic
+    conn
+    (let [tid (:id (db-call :tenant-id conn tenant))]
+      (db-call :rename-role conn (assoc naming :tenant-id tid)))))
 
 (defn set-role-description [conn {:keys [name] :as tenant} {:keys [name description] :as role}]
-  (db-call :rename-role conn (assoc role :tenant-name (:name tenant))))
+  (jdbc/atomic
+    conn
+    (let [tid (:id (db-call :tenant-id conn tenant))]
+      (db-call :update-description conn (assoc role :tenant-id tid)))))
 
 (defn delete-role [conn {:keys [name] :as tenant} {:keys [name] :as role}]
-  (db-call :delete-role conn (assoc role :tenant-name (:name tenant))))
+  (jdbc/atomic
+    conn
+    (let [tid (:id (db-call :tenant-id conn tenant))]
+      (db-call :delete-role conn (assoc role :tenant-id tid)))))
 
 (defn get-capabilities [conn]
   (db-call :select-capabilities conn))

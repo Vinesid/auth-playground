@@ -41,7 +41,7 @@ CREATE TABLE `role` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tenant_id` int,
   `name` varchar(255) DEFAULT NULL,
-  `description` text,
+  `description` varchar(1000),
   PRIMARY KEY (`id`),
   UNIQUE INDEX `idx_role_tenant_id_name` (`tenant_id`, `name`)
 ) DEFAULT CHARSET=utf8;

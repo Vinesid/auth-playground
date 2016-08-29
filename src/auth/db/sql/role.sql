@@ -13,21 +13,18 @@ insert into role (tenant_id, name, description)
 values (:tenant-id, :name, :description)
 
 -- :name rename-role :! :n
-update role r
-inner join tenant t on r.tenant_id = t.id
-set r.name = :new-name
-where r.name = :name and t.name = :tenant-name
+update role
+set name = :new-name
+where name = :name and tenant_id = :tenant-id
 
 -- :name update-description :! :n
-update role r
-inner join tenant t on r.tenant_id = t.id
-set r.description = :new-name
-where r.name = :name and t.name = :tenant-name
+update role
+set description = :description
+where name = :name and tenant_id = :tenant-id
 
 -- :name delete-role :! :n
-delete r from role r
-inner join tenant t on r.tenant_id = t.id
-where r.name = :name and t.name = :tenant-name
+delete from role
+where name = :name and tenant_id = :tenant-id
 
 -- :name select-capabilities :? :n
 select name, description from capability
