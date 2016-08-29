@@ -218,10 +218,48 @@
                1))
 
         (is (= (r/get-roles conn {:name "t1"})
-               [{:name "r2" :description "t1 role r2"}]))
+               [{:name "r2" :description "t1 role r2"}])))
 
+      (testing "Capability Management"
 
-        )
+        (is (= (r/add-capability conn {:name "cap1" :description "cap1 desc"})
+               1))
+
+        (is (= (r/add-capability conn {:name "cap2" :description "cap2 desc"})
+               1))
+
+        (is (= (r/add-capability conn {:name "cap3" :description "cap3 desc"})
+               1))
+
+        (is (= (r/get-capabilities conn)
+               [{:name "cap1" :description "cap1 desc"}
+                {:name "cap2" :description "cap2 desc"}
+                {:name "cap3" :description "cap3 desc"}]))
+
+        (is (= (r/delete-capability conn {:name "cap1"})
+               1))
+
+        (is (= (r/get-capabilities conn)
+               [{:name "cap2" :description "cap2 desc"}
+                {:name "cap3" :description "cap3 desc"}])))
+
+      (testing "Role Capability Management"
+
+        (is (= (r/assign-capability conn {:name "t1"} {:name "r2"} {:name "cap2"})
+               1))
+
+        (is (= (r/assign-capability conn {:name "t1"} {:name "r2"} {:name "cap3"})
+               1))
+
+        (is (= (r/get-role-capabilities conn {:name "t1"} {:name "r2"})
+               [{:name "cap2" :description "cap2 desc"}
+                {:name "cap3" :description "cap3 desc"}]))
+
+        (is (= (r/unassign-capability conn {:name "t1"} {:name "r2"} {:name "cap3"})
+               1))
+
+        (is (= (r/get-role-capabilities conn {:name "t1"} {:name "r2"})
+               [{:name "cap2" :description "cap2 desc"}])))
 
       (catch Exception e
         (throw e))

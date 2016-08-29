@@ -52,7 +52,7 @@ CREATE TABLE `role` (
 CREATE TABLE `capability` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
-  `description` text,
+  `description` varchar(1000),
   PRIMARY KEY (`id`),
   UNIQUE INDEX `idx_capability_name` (`name`)
 ) DEFAULT CHARSET=utf8;

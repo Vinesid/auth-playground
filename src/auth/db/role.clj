@@ -51,7 +51,7 @@
   (db-call :select-role-capabilities conn {:role-name (:name role)
                                            :tenant-name (:name tenant)}))
 
-(defn set-role-capability [conn tenant role capability]
+(defn assign-capability [conn tenant role capability]
   (jdbc/atomic
     conn
     (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
@@ -62,7 +62,7 @@
                                                :capability-id capability-id})
         0))))
 
-(defn unset-role-capability [conn tenant role capability]
+(defn unassign-capability [conn tenant role capability]
   (jdbc/atomic
     conn
     (let [role-id (:id (db-call :role-id conn {:tenant-name (:name tenant)
