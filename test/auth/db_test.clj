@@ -30,23 +30,23 @@
                1))
 
         (is (= (u/get-user conn {:username "u1"})
-               {:username "u1" :fullname "u1fn" :email "u1@email.com"}))
+               {:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}))
 
         (is (= (u/get-users conn)
-               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}
-                {:username "u2" :fullname "u2fn" :email "u2@email.com"}]))
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}
+                {:username "u2" :fullname "u2fn" :email "u2@email.com" :tenants []}]))
 
         (is (= (u/rename-user conn {:username "u2" :new-username "u2n"})
                1))
 
         (is (= (u/get-user conn {:username "u2n"})
-               {:username "u2n" :fullname "u2fn" :email "u2@email.com"}))
+               {:username "u2n" :fullname "u2fn" :email "u2@email.com" :tenants []}))
 
         (is (= (u/set-user-info conn {:username "u2n" :fullname "u2nfn" :email "u2n@email.com"})
                1))
 
         (is (= (u/get-user conn {:username "u2n"})
-               {:username "u2n" :fullname "u2nfn" :email "u2n@email.com"}))
+               {:username "u2n" :fullname "u2nfn" :email "u2n@email.com" :tenants []}))
 
         (is (= (u/delete-user conn {:username "u2n"})
                1))
@@ -54,7 +54,7 @@
         (is (not (u/get-user conn {:username "u2n"})))
 
         (is (= (u/get-users conn)
-               [{:username "u1" :fullname "u1fn" :email "u1@email.com"}])))
+               [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenants []}])))
 
       (testing "User Authentication"
 

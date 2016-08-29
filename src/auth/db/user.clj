@@ -16,11 +16,21 @@
 (defn- db-call [fn-name & args]
   (apply (get-in db-fns [fn-name :fn]) args))
 
+(defn get-user-tenants [conn {:keys [username] :as user}]
+  (->> (db-call :select-tenants-by-user conn user)
+       (mapv #(t/->tenant conn %))))
+
 (defn get-user [conn {:keys [username]}]
-  (db-call :select-user conn {:username username}))
+  (jdbc/atomic
+    conn
+    (when-let [user (db-call :select-user conn {:username username})]
+      (assoc user :tenants (get-user-tenants conn user)))))
 
 (defn get-users [conn]
-  (db-call :select-users conn))
+  (jdbc/atomic
+    conn
+    (mapv #(assoc % :tenants (get-user-tenants conn %))
+          (db-call :select-users conn))))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
@@ -125,10 +135,6 @@
         (db-call :delete-tenant-user conn {:tenant-id tenant-id
                                            :user-id user-id})
         0))))
-
-(defn get-user-tenants [conn {:keys [username] :as user}]
-  (->> (db-call :select-tenants-by-user conn user)
-       (mapv #(t/->tenant conn %))))
 
 (defn- role-params [conn user tenant role]
   (let [tenant-user-id (:id (db-call :tenant-user-id conn {:username (:username user)
