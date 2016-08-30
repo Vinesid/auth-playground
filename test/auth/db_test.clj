@@ -294,7 +294,19 @@
                {:username "u1"
                 :fullname "u1fn"
                 :email "u1@email.com"
-                :tenant-roles {"t1" ["r2"]}})))
+                :tenant-roles {"t1" ["r2"]}}))
+
+        (is (= (r/add-role conn {:name "t1"} {:name "r1" :description "t1 role r1"})
+               1))
+
+        (is (= (u/assign-role conn {:username "u1"} {:name "t1"} {:name "r1"})
+               1))
+
+        (is (= (u/get-user conn {:username "u1"})
+               {:username "u1"
+                :fullname "u1fn"
+                :email "u1@email.com"
+                :tenant-roles {"t1" ["r1" "r2"]}})))
 
       (catch Exception e
         (throw e))
