@@ -92,4 +92,4 @@ and role_id = :role-id
 -- :name select-tenant-user-roles :? :n
 select r.name from role r
 inner join tenant_user_role tur on r.id = tur.role_id
-where tur.id = :tenant-user-id
+where tur.tenant_user_id = :tenant-user-id

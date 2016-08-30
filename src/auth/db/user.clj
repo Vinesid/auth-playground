@@ -19,7 +19,10 @@
   (reduce (fn [tenants tenant]
             (let [tuid (:id (db-call :tenant-user-id conn {:username username
                                                            :tenant-name (:name tenant)}))
-                  roles (mapv :name (db-call :select-tenant-user-roles conn {:tenant-user-id tuid}))]
+                  roles (->> (db-call :select-tenant-user-roles conn {:tenant-user-id tuid})
+                             (map :name)
+                             (sort)
+                             (into []))]
               (assoc tenants (:name tenant) roles)))
           {}
           (db-call :select-tenants-by-user conn user)))
