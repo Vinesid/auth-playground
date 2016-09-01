@@ -93,3 +93,10 @@ and role_id = :role-id
 select r.name from role r
 inner join tenant_user_role tur on r.id = tur.role_id
 where tur.tenant_user_id = :tenant-user-id
+
+-- :name select-user-capabilities :? :n
+select c.name from capability c
+inner join role_capability rc on c.id = rc.capability_id
+inner join role r on rc.role_id = r.id
+inner join tenant_user_role tur on tur.role_id = r.id
+where tur.tenant_user_id = :tenant-user-id

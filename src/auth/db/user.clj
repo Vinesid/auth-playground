@@ -59,21 +59,33 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn authenticate [conn {:keys [username password]}]
+(defn- validate-user-login [conn {:keys [tenant username password]}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
       {:status :success
-       :user (dissoc user :password)}
+       :user   (dissoc user :password)}
       {:status :failed
        :cause  :invalid-password})
     {:status :failed
      :cause  :unknown-user}))
 
+(defn authenticate [conn {:keys [tenant username password] :as login}]
+  (let [user-auth (validate-user-login conn login)]
+    (if (= (:status user-auth) :success)
+      (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
+        (assoc user-auth :capabilities
+                         (->> (db-call :select-user-capabilities conn {:tenant-user-id tuid})
+                              (map :name)
+                              set))
+        {:status :failed
+         :cause  :invalid-tenant})
+      user-auth)))
+
 (defn change-password [conn {:keys [username password new-password]}]
   (jdbc/atomic conn
-    (let [auth-result (authenticate conn {:username username :password password})]
+    (let [auth-result (validate-user-login conn {:username username :password password})]
       (if (= (:status auth-result) :success)
         (if (= 1 (set-password conn {:username username :password new-password}))
           {:status :success}
@@ -84,10 +96,11 @@
   {:alg :dir
    :enc :a128cbc-hs256})
 
-(defn obtain-token [conn secret exp-seconds {:keys [username password] :as login}]
+(defn obtain-token [conn secret exp-seconds {:keys [tenant username password] :as login}]
   (let [auth-result (authenticate conn login)]
     (if (= (:status auth-result) :success)
       (let [claim {:user (:user auth-result)
+                   :capabilities (:capabilities auth-result)
                    :exp (-> exp-seconds seconds from-now)}
             secret-key (hash/sha256 secret)
             token (jwt/encrypt claim secret-key encryption)]
@@ -96,8 +109,9 @@
 
 (defn authenticate-token [secret token]
   (try
-    (assoc (jwt/decrypt token (hash/sha256 secret) encryption)
-      :status :success)
+    (-> (jwt/decrypt token (hash/sha256 secret) encryption)
+        (update :capabilities set)
+        (assoc :status :success))
     (catch Exception e
       (assoc (ex-data e) :status :failed))))
 

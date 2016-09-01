@@ -7,7 +7,7 @@
             [auth.db.tenant :as t]
             [auth.db.role :as r]))
 
-(deftest auth-db-test
+(deftest auth-db-test-crud
 
   (let [ds (cp/make-datasource {:adapter  "h2"
                                 :url      "jdbc:h2:mem:authtest"
@@ -55,64 +55,6 @@
 
         (is (= (u/get-users conn)
                [{:username "u1" :fullname "u1fn" :email "u1@email.com" :tenant-roles {}}])))
-
-      (testing "User Authentication"
-
-        (is (u/set-password conn {:username "u1" :password "p1"})
-            1)
-
-        (is (u/authenticate conn {:username "u1" :password "p1"})
-            {:status :success
-             :user   {:username "u1" :fullname "u1fn" :email "u1@email.com"}})
-
-        (is (u/authenticate conn {:username "ux" :password "p1"})
-            {:status :failed
-             :cause  :unknown-user})
-
-        (is (u/authenticate conn {:username "u1" :password "px"})
-            {:status :failed
-             :cause  :invalid-password})
-
-        (is (u/change-password conn {:username "u1" :password "p1" :new-password "pn"})
-            {:status :success})
-
-        (let [expire-seconds 1
-              secret "server-hmac-secret"
-              result (u/obtain-token conn secret expire-seconds {:username "u1" :password "pn"})]
-
-          (is (= (:status result) :success))
-
-          (is (= (:user result)
-                 {:username "u1" :fullname "u1fn" :email "u1@email.com"}))
-
-          (let [result (u/authenticate-token secret (:token result))]
-
-            (is (= (:status result) :success))
-
-            (is (= (:user result)
-                   {:username "u1" :fullname "u1fn" :email "u1@email.com"})))
-
-          (let [result (do
-                         (Thread/sleep (* expire-seconds 1000 1.2))
-                         (u/authenticate-token secret (:token result)))]
-
-            (is (= result
-                   {:status :failed
-                    :type   :validation
-                    :cause  :exp}))))
-
-        (let [expire-seconds 2
-              reset-token (u/obtain-reset-token conn "secret" expire-seconds {:username "u1"})
-              reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
-              snd-reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
-              exp-reset (do
-                          (Thread/sleep (* expire-seconds 1000 1.2))
-                          (u/reset-password conn "secret" {:new-password "np" :token reset-token}))]
-          (is (= (:status reset) :success))
-          (is (= snd-reset {:status :failed}))
-          (is (= exp-reset {:status :failed
-                            :type   :validation
-                            :cause  :exp}))))
 
       (testing "Tenant Management"
 
@@ -307,6 +249,175 @@
                 :fullname "u1fn"
                 :email "u1@email.com"
                 :tenant-roles {"t1" ["r1" "r2"]}})))
+
+      (catch Exception e
+        (throw e))
+
+      (finally
+        (.close conn)
+        (cp/close-datasource ds)))
+
+    ))
+
+(deftest auth-db-test-scenario
+
+  (let [ds (cp/make-datasource {:adapter  "h2"
+                                :url      "jdbc:h2:mem:authtest"
+                                :username "sa"
+                                :password ""})
+        conn (jdbc/connection ds)]
+
+    (try
+
+      (testing "Create tables"
+        (is (= (schema/h2-create-tables conn)
+               0)))
+
+      (testing "Scenario: Tenants, Roles, Capabilities"
+
+        ;; Capabilities
+        (is (= (+ (r/add-capability conn {:name        "edit_article"
+                                          :description "Edit existings articles."})
+                  (r/add-capability conn {:name        "create_article"
+                                          :description "Create new articles."})
+                  (r/add-capability conn {:name        "delete_article"
+                                          :description "Delete articles."})
+                  (r/add-capability conn {:name        "review_article"
+                                          :description "Review and comment articles."})
+                  (r/add-capability conn {:name        "publish_article"
+                                          :description "Publish article."})
+
+                  (r/add-capability conn {:name        "manage_users"
+                                          :description "Create, edit, delete users."})
+                  (r/add-capability conn {:name        "manage_roles"
+                                          :description "Create, edit, delete roles and capabilities."}))
+               7))
+
+        ;; Tenant: The New Company
+        (is
+          (= (+ (t/add-tenant conn {:name "The News Company" :config {:some :config}})
+                ;; Editor
+                (r/add-role conn {:name "The News Company"} {:name "editor" :description "Write articles."})
+                (r/assign-capability conn {:name "The News Company"} {:name "editor"} {:name "edit_article"})
+                (r/assign-capability conn {:name "The News Company"} {:name "editor"} {:name "create_article"})
+                ;; Chief Editor
+                (r/add-role conn {:name "The News Company"} {:name "chief editor" :description "Control publishing."})
+                (r/assign-capability conn {:name "The News Company"} {:name "chief editor"} {:name "publish_article"})
+                (r/assign-capability conn {:name "The News Company"} {:name "chief editor"} {:name "delete_article"})
+                ;; Reviewer
+                (r/add-role conn {:name "The News Company"} {:name "reviewer" :description "Articles QA."})
+                (r/assign-capability conn {:name "The News Company"} {:name "reviewer"} {:name "review_article"})
+                ;; Manager
+                (r/add-role conn {:name "The News Company"} {:name "manager" :description "Manage users"})
+                (r/assign-capability conn {:name "The News Company"} {:name "manager"} {:name "manage_users"})
+                (r/assign-capability conn {:name "The News Company"} {:name "manager"} {:name "manage_roles"}))
+             12))
+
+        ;; Tenant: My Personal Blog
+        (is
+          (= (+ (t/add-tenant conn {:name "My Personal Blog" :config {:k :v}})
+                (r/add-role conn {:name "My Personal Blog"} {:name "blogger" :description "Blog articles."})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "edit_article"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "create_article"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "publish_article"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "delete_article"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "review_article"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "manage_users"})
+                (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "manage_roles"}))
+             9))
+
+        ;; User John
+        (is
+          (= (+ (u/add-user conn {:username "jd" :fullname "John Doe" :email "jd@news.com"})
+                (u/assign-tenant conn {:username "jd"} {:name "The News Company"})
+                (u/assign-role conn {:username "jd"} {:name "The News Company"} {:name "editor"})
+                (u/assign-role conn {:username "jd"} {:name "The News Company"} {:name "reviewer"})
+                (u/assign-tenant conn {:username "jd"} {:name "My Personal Blog"})
+                (u/assign-role conn {:username "jd"} {:name "My Personal Blog"} {:name "blogger"}))
+             6))
+
+        (is (= (u/set-password conn {:username "jd" :password "pass"})
+               1)))
+
+      (testing "User Authentication"
+
+        (is (= (u/authenticate conn {:tenant "The News Company" :username "ux" :password "p1"})
+               {:status :failed
+                :cause  :unknown-user}))
+
+        (is (= (u/authenticate conn {:tenant "The News Compay" :username "jd" :password "px"})
+               {:status :failed
+                :cause  :invalid-password}))
+
+        (is (= (u/authenticate conn {:tenant "The Bad Company" :username "jd" :password "pass"})
+               {:status :failed
+                :cause  :invalid-tenant}))
+
+        (is (= (u/authenticate conn {:tenant "The News Company" :username "jd" :password "pass"})
+               {:status :success
+                :user {:username "jd"
+                       :fullname "John Doe"
+                       :email "jd@news.com"}
+                :capabilities #{"create_article" "edit_article" "review_article"}}))
+
+        (is (= (u/authenticate conn {:tenant "My Personal Blog" :username "jd" :password "pass"})
+               {:status :success
+                :user {:username "jd"
+                       :fullname "John Doe"
+                       :email "jd@news.com"}
+                :capabilities #{"create_article" "publish_article" "edit_article" "manage_users" "review_article" "manage_roles" "delete_article"}}))
+
+        (is (= (u/change-password conn {:username "jd" :password "pass" :new-password "pn"})
+               {:status :success}))
+
+        (is (= (u/authenticate conn {:tenant "The News Company" :username "jd" :password "pn"})
+               {:status :success
+                :user {:username "jd"
+                       :fullname "John Doe"
+                       :email "jd@news.com"}
+                :capabilities #{"create_article" "edit_article" "review_article"}}))
+
+        (let [expire-seconds 1
+              secret "server-hmac-secret"
+              result (u/obtain-token conn secret expire-seconds {:tenant "The News Company" :username "jd" :password "pn"})]
+
+          (is (= (dissoc result :token)
+                 {:status :success
+                  :user {:username "jd"
+                         :fullname "John Doe"
+                         :email "jd@news.com"}
+                  :capabilities #{"create_article" "edit_article" "review_article"}}))
+
+          (let [result (u/authenticate-token secret (:token result))]
+
+            (is (= (dissoc result :exp)
+                   {:status :success
+                    :user {:username "jd"
+                           :fullname "John Doe"
+                           :email "jd@news.com"}
+                    :capabilities #{"create_article" "edit_article" "review_article"}})))
+
+          (let [result (do
+                         (Thread/sleep (* expire-seconds 1000 1.2))
+                         (u/authenticate-token secret (:token result)))]
+
+            (is (= result
+                   {:status :failed
+                    :type   :validation
+                    :cause  :exp}))))
+
+        (let [expire-seconds 2
+              reset-token (u/obtain-reset-token conn "secret" expire-seconds {:username "jd"})
+              reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
+              snd-reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
+              exp-reset (do
+                          (Thread/sleep (* expire-seconds 1000 1.2))
+                          (u/reset-password conn "secret" {:new-password "np" :token reset-token}))]
+          (is (= (:status reset) :success))
+          (is (= snd-reset {:status :failed}))
+          (is (= exp-reset {:status :failed
+                            :type   :validation
+                            :cause  :exp}))))
 
       (catch Exception e
         (throw e))
