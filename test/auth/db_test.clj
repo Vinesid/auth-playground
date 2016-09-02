@@ -295,7 +295,7 @@
 
         ;; Tenant: The New Company
         (is
-          (= (+ (t/add-tenant conn {:name "The News Company" :config {:some :config}})
+          (= (+ (t/add-tenant conn {:name "The News Company" :config {:some "config"}})
                 ;; Editor
                 (r/add-role conn {:name "The News Company"} {:name "editor" :description "Write articles."})
                 (r/assign-capability conn {:name "The News Company"} {:name "editor"} {:name "edit_article"})
@@ -315,7 +315,7 @@
 
         ;; Tenant: My Personal Blog
         (is
-          (= (+ (t/add-tenant conn {:name "My Personal Blog" :config {:k :v}})
+          (= (+ (t/add-tenant conn {:name "My Personal Blog" :config {:k "v"}})
                 (r/add-role conn {:name "My Personal Blog"} {:name "blogger" :description "Blog articles."})
                 (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "edit_article"})
                 (r/assign-capability conn {:name "My Personal Blog"} {:name "blogger"} {:name "create_article"})
@@ -355,27 +355,33 @@
 
         (is (= (u/authenticate conn {:tenant "The News Company" :username "jd" :password "pass"})
                {:status :success
-                :user {:username "jd"
-                       :fullname "John Doe"
-                       :email "jd@news.com"}
-                :capabilities #{"create_article" "edit_article" "review_article"}}))
+                :user   {:username     "jd"
+                         :fullname     "John Doe"
+                         :email        "jd@news.com"
+                         :tenant       {:name   "The News Company"
+                                        :config {:some "config"}}
+                         :capabilities #{"create_article" "edit_article" "review_article"}}}))
 
         (is (= (u/authenticate conn {:tenant "My Personal Blog" :username "jd" :password "pass"})
                {:status :success
                 :user {:username "jd"
                        :fullname "John Doe"
-                       :email "jd@news.com"}
-                :capabilities #{"create_article" "publish_article" "edit_article" "manage_users" "review_article" "manage_roles" "delete_article"}}))
+                       :email "jd@news.com"
+                       :tenant {:name   "My Personal Blog"
+                                :config {:k "v"}}
+                       :capabilities #{"create_article" "publish_article" "edit_article" "manage_users" "review_article" "manage_roles" "delete_article"}}}))
 
         (is (= (u/change-password conn {:username "jd" :password "pass" :new-password "pn"})
                {:status :success}))
 
         (is (= (u/authenticate conn {:tenant "The News Company" :username "jd" :password "pn"})
                {:status :success
-                :user {:username "jd"
-                       :fullname "John Doe"
-                       :email "jd@news.com"}
-                :capabilities #{"create_article" "edit_article" "review_article"}}))
+                :user   {:username     "jd"
+                         :fullname     "John Doe"
+                         :email        "jd@news.com"
+                         :tenant       {:name   "The News Company"
+                                        :config {:some "config"}}
+                         :capabilities #{"create_article" "edit_article" "review_article"}}}))
 
         (let [expire-seconds 1
               secret "server-hmac-secret"
@@ -383,19 +389,23 @@
 
           (is (= (dissoc result :token)
                  {:status :success
-                  :user {:username "jd"
-                         :fullname "John Doe"
-                         :email "jd@news.com"}
-                  :capabilities #{"create_article" "edit_article" "review_article"}}))
+                  :user   {:username     "jd"
+                           :fullname     "John Doe"
+                           :email        "jd@news.com"
+                           :tenant       {:name   "The News Company"
+                                          :config {:some "config"}}
+                           :capabilities #{"create_article" "edit_article" "review_article"}}}))
 
           (let [result (u/authenticate-token secret (:token result))]
 
             (is (= (dissoc result :exp)
                    {:status :success
-                    :user {:username "jd"
-                           :fullname "John Doe"
-                           :email "jd@news.com"}
-                    :capabilities #{"create_article" "edit_article" "review_article"}})))
+                    :user   {:username     "jd"
+                             :fullname     "John Doe"
+                             :email        "jd@news.com"
+                             :tenant       {:name   "The News Company"
+                                            :config {:some "config"}}
+                             :capabilities #{"create_article" "edit_article" "review_article"}}})))
 
           (let [result (do
                          (Thread/sleep (* expire-seconds 1000 1.2))

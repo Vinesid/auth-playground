@@ -5,7 +5,8 @@
             [buddy.hashers :as hs]
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
-            [clj-time.core :refer [seconds from-now]]))
+            [clj-time.core :refer [seconds from-now]]
+            [auth.db.tenant :as t]))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -65,7 +66,10 @@
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
       {:status :success
-       :user   (dissoc user :password)}
+       :user   (-> user
+                   (dissoc :password)
+                   (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
+                                               [:name :config])))}
       {:status :failed
        :cause  :invalid-password})
     {:status :failed
@@ -75,10 +79,10 @@
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
-        (assoc user-auth :capabilities
-                         (->> (db-call :select-user-capabilities conn {:tenant-user-id tuid})
-                              (map :name)
-                              set))
+        (assoc-in user-auth [:user :capabilities]
+                  (->> (db-call :select-user-capabilities conn {:tenant-user-id tuid})
+                       (map :name)
+                       set))
         {:status :failed
          :cause  :invalid-tenant})
       user-auth)))
@@ -100,7 +104,6 @@
   (let [auth-result (authenticate conn login)]
     (if (= (:status auth-result) :success)
       (let [claim {:user (:user auth-result)
-                   :capabilities (:capabilities auth-result)
                    :exp (-> exp-seconds seconds from-now)}
             secret-key (hash/sha256 secret)
             token (jwt/encrypt claim secret-key encryption)]
@@ -110,7 +113,7 @@
 (defn authenticate-token [secret token]
   (try
     (-> (jwt/decrypt token (hash/sha256 secret) encryption)
-        (update :capabilities set)
+        (update-in [:user :capabilities] set)
         (assoc :status :success))
     (catch Exception e
       (assoc (ex-data e) :status :failed))))
