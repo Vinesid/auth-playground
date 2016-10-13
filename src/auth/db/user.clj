@@ -9,9 +9,6 @@
             [auth.db.tenant :as t])
   (:import (java.sql Timestamp)))
 
-(defn- current-time []
-  (Timestamp. (System/currentTimeMillis)))
-
 (def ^:private db-fns
   (sql/map-of-db-fns
     "auth/db/sql/user.sql"
@@ -44,10 +41,18 @@
     (mapv #(assoc % :tenant-roles (get-tenant-roles conn %))
           (db-call :select-users conn))))
 
+(defn- set-last-login [conn {:keys [username]} timestamp]
+  (db-call :set-user-last-login conn {:username   username
+                                      :last-login (Timestamp. timestamp)}))
+
+(defn deactivate-user [conn user]
+  (set-last-login conn user 0))
+
+(defn activate-user [conn user]
+  (set-last-login conn user (System/currentTimeMillis)))
+
 (defn add-user [conn {:keys [username fullname email] :as user}]
-  (db-call :insert-user conn user)
-  (db-call :set-user-last-login conn {:username username
-                                      :last-login (current-time)}))
+  (db-call :insert-user conn user))
 
 (defn rename-user [conn {:keys [username new-username] :as naming}]
   (db-call :rename-user conn naming))
@@ -70,12 +75,10 @@
   (if login-validity-ms
     (let [last-login (.getTime ^Timestamp (->> {:username username}
                                                (db-call :select-user-last-login conn)
-                                               :last_login))
-          current-time (current-time)]
+                                               :last_login))]
       (when (> (+ last-login login-validity-ms)
-               (.getTime current-time))
-        (db-call :set-user-last-login conn {:username username
-                                            :last-login current-time})))
+               (System/currentTimeMillis))
+        (activate-user conn {:username username})))
     true))
 
 (defn- validate-user-login [conn {:keys [tenant username password login-validity-ms] :as login}]

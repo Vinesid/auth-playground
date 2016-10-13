@@ -341,31 +341,7 @@
 
       (testing "User Authentication"
 
-        (let [jane-smith {:username "js" :fullname "Jane Smith" :email "js@news.com"}]
-
-          (is (= (+ (u/add-user conn jane-smith)
-                    (u/assign-tenant conn jane-smith {:name "The News Company"})
-                    (u/set-password conn (assoc jane-smith :password "pass")))
-                 3))
-
-          (Thread/sleep 2)
-
-          (is (= (u/authenticate conn {:tenant "The News Company" :username "js" :password "pass" :login-validity-ms 1})
-                 {:status :failed
-                  :cause  :login-expired}))
-
-          (is (= (u/authenticate conn {:tenant "The News Company" :username "js" :password "pass" :login-validity-ms 500000})
-                 {:status :success
-                  :user   (assoc jane-smith
-                            :tenant {:name   "The News Company"
-                                     :config {:some "config"}}
-                            :capabilities #{})}))
-
-          (is (= (u/delete-user conn jane-smith)
-                 1))
-
-          (is (= (u/get-user conn jane-smith)
-                 nil)))
+        ;; Login procedure
 
         (is (= (u/authenticate conn {:tenant "The News Company" :username "ux" :password "p1"})
                {:status :failed
@@ -408,6 +384,56 @@
                          :tenant       {:name   "The News Company"
                                         :config {:some "config"}}
                          :capabilities #{"create_article" "edit_article" "review_article"}}}))
+
+        ;; Login-expiration
+
+        (let [username "user"
+              password "password"
+              user {:username username :fullname "User Name" :email "user@tenant.com"}
+              tenant-name "Tenant 1"
+              tenant {:name tenant-name :config {:k "v"}}
+              authentication-params {:tenant tenant-name :username username :password password :login-validity-ms 500000}
+              valid-user (assoc user
+                           :tenant tenant
+                           :capabilities #{})]
+
+          (is (= (+ (u/add-user conn user)
+                    (t/add-tenant conn tenant)
+                    (u/assign-tenant conn user tenant)
+                    (u/set-password conn (assoc user :password password)))
+                 4))
+
+          (Thread/sleep 2)
+
+          (is (= (u/authenticate conn {:tenant tenant-name :username username :password password :login-validity-ms 1})
+                 {:status :failed
+                  :cause  :login-expired}))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :success
+                  :user   valid-user}))
+
+          (is (= (u/deactivate-user conn user)
+                 1))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :failed
+                  :cause  :login-expired}))
+
+          (is (= (u/activate-user conn user)
+                 1))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :success
+                  :user   valid-user}))
+
+          (is (= (u/delete-user conn user)
+                 1))
+
+          (is (= (u/get-user conn user)
+                 nil)))
+
+        ;; Tokens
 
         (let [expire-seconds 1
               secret "server-hmac-secret"
