@@ -6,6 +6,7 @@ CREATE TABLE `user` (
   `username` varchar(255) DEFAULT NULL,
   `fullname` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
+  `last_login` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
   `password` varchar(255),
   `reset` boolean,
   PRIMARY KEY (`id`),

@@ -21,6 +21,15 @@ update user
 set password = :password, reset = false
 where username = :username
 
+-- :name set-user-last-login :! :n
+update user
+set last_login = :last-login
+where username = :username
+
+-- :name select-user-last-login :? :1
+select last_login from user
+where username = :username
+
 -- :name set-user-reset :! :n
 update user
 set reset = :reset?

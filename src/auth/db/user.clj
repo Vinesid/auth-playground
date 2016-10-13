@@ -6,7 +6,11 @@
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
             [clj-time.core :refer [seconds from-now]]
-            [auth.db.tenant :as t]))
+            [auth.db.tenant :as t])
+  (:import (java.sql Timestamp)))
+
+(defn- current-time []
+  (Timestamp. (System/currentTimeMillis)))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -41,7 +45,9 @@
           (db-call :select-users conn))))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
-  (db-call :insert-user conn user))
+  (db-call :insert-user conn user)
+  (db-call :set-user-last-login conn {:username username
+                                      :last-login (current-time)}))
 
 (defn rename-user [conn {:keys [username new-username] :as naming}]
   (db-call :rename-user conn naming))
@@ -60,22 +66,35 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn- validate-user-login [conn {:keys [tenant username password]}]
+(defn check-login-validity [conn {:keys [username login-validity-in-seconds]}]
+  (if login-validity-in-seconds
+    (let [last-login (db-call :select-user-last-login conn {:username username})
+          current-time (current-time)]
+      (when (< (+ last-login login-validity-in-seconds)
+               current-time)
+        (db-call :set-user-last-login conn {:username username
+                                            :last-login current-time})))
+    true))
+
+(defn- validate-user-login [conn {:keys [tenant username password login-validity-in-seconds] :as login}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
-      {:status :success
-       :user   (-> user
-                   (dissoc :password)
-                   (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
-                                               [:name :config])))}
+      (if (check-login-validity conn login)
+        {:status :success
+         :user   (-> user
+                     (dissoc :password)
+                     (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
+                                                 [:name :config])))}
+        {:status :failed
+         :cause  :login-expired})
       {:status :failed
        :cause  :invalid-password})
     {:status :failed
      :cause  :unknown-user}))
 
-(defn authenticate [conn {:keys [tenant username password] :as login}]
+(defn authenticate [conn {:keys [tenant username password login-validity-in-seconds] :as login}]
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
