@@ -55,11 +55,17 @@
     (when-let [user (db-call :select-user conn user)]
       (assoc user :tenant-roles (get-tenant-roles conn user)))))
 
-(defn get-users [conn]
-  (jdbc/atomic
-    conn
-    (mapv #(assoc % :tenant-roles (get-tenant-roles conn %))
-          (db-call :select-users conn))))
+(defn get-users
+  ([conn]
+   (get-users conn nil))
+  ([conn {:keys [validity-period-in-ms] :as options}]
+   (jdbc/atomic
+     conn
+     (mapv #(merge %
+                   {:tenant-roles (get-tenant-roles conn %)}
+                   (when validity-period-in-ms
+                     {:active? (active-user? conn (merge % options))}))
+           (db-call :select-users conn)))))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))

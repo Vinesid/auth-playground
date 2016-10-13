@@ -392,7 +392,8 @@
               user {:username username :fullname "User Name" :email "user@tenant.com"}
               tenant-name "Tenant 1"
               tenant {:name tenant-name :config {:k "v"}}
-              authentication-params {:tenant tenant-name :username username :password password :validity-period-in-ms 500000}
+              one-hour-in-ms (* 1000 60 60)
+              authentication-params {:tenant tenant-name :username username :password password :validity-period-in-ms one-hour-in-ms}
               valid-user (assoc user
                            :tenant tenant
                            :capabilities #{})]
@@ -413,15 +414,27 @@
                  {:status :success
                   :user   valid-user}))
 
-          (is (= (u/deactivate-user conn user)
-                 1))
+          (let [n-active-users (fn []
+                                 (->> (u/get-users conn {:validity-period-in-ms one-hour-in-ms})
+                                      (filter :active?)
+                                      count))
+                n-active-users-before (n-active-users)]
 
-          (is (not (u/active-user? conn authentication-params)))
+            (is (= (u/deactivate-user conn user)
+                   1))
 
-          (is (= (u/activate-user conn user)
-                 1))
+            (is (not (u/active-user? conn authentication-params)))
 
-          (is (u/active-user? conn authentication-params))
+            (is (= (- n-active-users-before 1)
+                   (n-active-users)))
+
+            (is (= (u/activate-user conn user)
+                   1))
+
+            (is (u/active-user? conn authentication-params))
+
+            (is (= n-active-users-before
+                   (n-active-users))))
 
           (is (= (u/delete-user conn user)
                  1))
