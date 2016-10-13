@@ -392,7 +392,7 @@
               user {:username username :fullname "User Name" :email "user@tenant.com"}
               tenant-name "Tenant 1"
               tenant {:name tenant-name :config {:k "v"}}
-              authentication-params {:tenant tenant-name :username username :password password :login-validity-ms 500000}
+              authentication-params {:tenant tenant-name :username username :password password :validity-period-in-ms 500000}
               valid-user (assoc user
                            :tenant tenant
                            :capabilities #{})]
@@ -405,7 +405,7 @@
 
           (Thread/sleep 2)
 
-          (is (= (u/authenticate conn {:tenant tenant-name :username username :password password :login-validity-ms 1})
+          (is (= (u/authenticate conn {:tenant tenant-name :username username :password password :validity-period-in-ms 1})
                  {:status :failed
                   :cause  :login-expired}))
 
@@ -416,16 +416,12 @@
           (is (= (u/deactivate-user conn user)
                  1))
 
-          (is (= (u/authenticate conn authentication-params)
-                 {:status :failed
-                  :cause  :login-expired}))
+          (is (not (u/active-user? conn authentication-params)))
 
           (is (= (u/activate-user conn user)
                  1))
 
-          (is (= (u/authenticate conn authentication-params)
-                 {:status :success
-                  :user   valid-user}))
+          (is (u/active-user? conn authentication-params))
 
           (is (= (u/delete-user conn user)
                  1))

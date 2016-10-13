@@ -29,10 +29,30 @@
           {}
           (db-call :select-tenants-by-user conn user)))
 
-(defn get-user [conn {:keys [username]}]
+(defn- set-last-login [conn {:keys [username]} timestamp]
+  (db-call :set-user-last-login conn {:username   username
+                                      :last-login (Timestamp. timestamp)}))
+
+(defn deactivate-user [conn {:keys [username] :as user}]
+  (set-last-login conn user 0))
+
+(defn activate-user [conn {:keys [username] :as user}]
+  (set-last-login conn user (System/currentTimeMillis)))
+
+(defn active-user? [conn {:keys [username validity-period-in-ms] :as user}]
+  (if validity-period-in-ms
+    (let [last-login (.getTime ^Timestamp (->> {:username username}
+                                               (db-call :select-user-last-login conn)
+                                               :last_login))]
+      (> (+ last-login validity-period-in-ms)
+         (System/currentTimeMillis)))
+    true))
+
+
+(defn get-user [conn {:keys [username] :as user}]
   (jdbc/atomic
     conn
-    (when-let [user (db-call :select-user conn {:username username})]
+    (when-let [user (db-call :select-user conn user)]
       (assoc user :tenant-roles (get-tenant-roles conn user)))))
 
 (defn get-users [conn]
@@ -40,16 +60,6 @@
     conn
     (mapv #(assoc % :tenant-roles (get-tenant-roles conn %))
           (db-call :select-users conn))))
-
-(defn- set-last-login [conn {:keys [username]} timestamp]
-  (db-call :set-user-last-login conn {:username   username
-                                      :last-login (Timestamp. timestamp)}))
-
-(defn deactivate-user [conn user]
-  (set-last-login conn user 0))
-
-(defn activate-user [conn user]
-  (set-last-login conn user (System/currentTimeMillis)))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
@@ -71,27 +81,18 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn check-login-validity [conn {:keys [username login-validity-ms]}]
-  (if login-validity-ms
-    (let [last-login (.getTime ^Timestamp (->> {:username username}
-                                               (db-call :select-user-last-login conn)
-                                               :last_login))]
-      (when (> (+ last-login login-validity-ms)
-               (System/currentTimeMillis))
-        (activate-user conn {:username username})))
-    true))
-
-(defn- validate-user-login [conn {:keys [tenant username password login-validity-ms] :as login}]
+(defn- validate-user-login [conn {:keys [tenant username password validity-period-in-ms] :as login}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
-      (if (check-login-validity conn login)
-        {:status :success
-         :user   (-> user
-                     (dissoc :password)
-                     (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
-                                                 [:name :config])))}
+      (if (active-user? conn login)
+        (do (activate-user conn {:username username})
+            {:status :success
+             :user   (-> user
+                         (dissoc :password)
+                         (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
+                                                     [:name :config])))})
         {:status :failed
          :cause  :login-expired})
       {:status :failed
@@ -99,7 +100,7 @@
     {:status :failed
      :cause  :unknown-user}))
 
-(defn authenticate [conn {:keys [tenant username password login-validity-ms] :as login}]
+(defn authenticate [conn {:keys [tenant username password validity-period-in-ms] :as login}]
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
