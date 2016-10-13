@@ -341,6 +341,32 @@
 
       (testing "User Authentication"
 
+        (let [jane-smith {:username "js" :fullname "Jane Smith" :email "js@news.com"}]
+
+          (is (= (+ (u/add-user conn jane-smith)
+                    (u/assign-tenant conn jane-smith {:name "The News Company"})
+                    (u/set-password conn (assoc jane-smith :password "pass")))
+                 3))
+
+          (Thread/sleep 2)
+
+          (is (= (u/authenticate conn {:tenant "The News Company" :username "js" :password "pass" :login-validity-ms 1})
+                 {:status :failed
+                  :cause  :login-expired}))
+
+          (is (= (u/authenticate conn {:tenant "The News Company" :username "js" :password "pass" :login-validity-ms 500000})
+                 {:status :success
+                  :user   (assoc jane-smith
+                            :tenant {:name   "The News Company"
+                                     :config {:some "config"}}
+                            :capabilities #{})}))
+
+          (is (= (u/delete-user conn jane-smith)
+                 1))
+
+          (is (= (u/get-user conn jane-smith)
+                 nil)))
+
         (is (= (u/authenticate conn {:tenant "The News Company" :username "ux" :password "p1"})
                {:status :failed
                 :cause  :unknown-user}))

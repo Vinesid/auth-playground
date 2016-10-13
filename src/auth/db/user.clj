@@ -66,17 +66,19 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn check-login-validity [conn {:keys [username login-validity-in-seconds]}]
-  (if login-validity-in-seconds
-    (let [last-login (db-call :select-user-last-login conn {:username username})
+(defn check-login-validity [conn {:keys [username login-validity-ms]}]
+  (if login-validity-ms
+    (let [last-login (.getTime ^Timestamp (->> {:username username}
+                                               (db-call :select-user-last-login conn)
+                                               :last_login))
           current-time (current-time)]
-      (when (< (+ last-login login-validity-in-seconds)
-               current-time)
+      (when (> (+ last-login login-validity-ms)
+               (.getTime current-time))
         (db-call :set-user-last-login conn {:username username
                                             :last-login current-time})))
     true))
 
-(defn- validate-user-login [conn {:keys [tenant username password login-validity-in-seconds] :as login}]
+(defn- validate-user-login [conn {:keys [tenant username password login-validity-ms] :as login}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
@@ -94,7 +96,7 @@
     {:status :failed
      :cause  :unknown-user}))
 
-(defn authenticate [conn {:keys [tenant username password login-validity-in-seconds] :as login}]
+(defn authenticate [conn {:keys [tenant username password login-validity-ms] :as login}]
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
