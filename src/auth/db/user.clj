@@ -34,7 +34,7 @@
                                       :last-login (Date. ^long timestamp)}))
 
 (defn deactivate-user [conn {:keys [username] :as user}]
-  (set-last-login conn user 0))
+  (set-last-login conn user 1001))
 
 (defn activate-user [conn {:keys [username] :as user}]
   (set-last-login conn user (System/currentTimeMillis)))
