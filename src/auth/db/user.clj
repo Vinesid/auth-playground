@@ -7,7 +7,7 @@
             [buddy.sign.jwt :as jwt]
             [clj-time.core :refer [seconds from-now]]
             [auth.db.tenant :as t])
-  (:import (java.sql Timestamp)))
+  (:import (java.util Date)))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -31,7 +31,7 @@
 
 (defn- set-last-login [conn {:keys [username]} timestamp]
   (db-call :set-user-last-login conn {:username   username
-                                      :last-login (Timestamp. timestamp)}))
+                                      :last-login (Date. ^long timestamp)}))
 
 (defn deactivate-user [conn {:keys [username] :as user}]
   (set-last-login conn user 0))
@@ -41,7 +41,7 @@
 
 (defn active-user? [conn {:keys [username validity-period-in-ms] :as user}]
   (if validity-period-in-ms
-    (let [last-login (.getTime ^Timestamp (->> {:username username}
+    (let [last-login (.getTime ^Date (->> {:username username}
                                                (db-call :select-user-last-login conn)
                                                :last_login))]
       (> (+ last-login validity-period-in-ms)
