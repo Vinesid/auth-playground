@@ -6,7 +6,8 @@
             [buddy.core.hash :as hash]
             [buddy.sign.jwt :as jwt]
             [clj-time.core :refer [seconds from-now]]
-            [auth.db.tenant :as t]))
+            [auth.db.tenant :as t])
+  (:import (java.util Date)))
 
 (def ^:private db-fns
   (sql/map-of-db-fns
@@ -28,17 +29,43 @@
           {}
           (db-call :select-tenants-by-user conn user)))
 
-(defn get-user [conn {:keys [username]}]
+(defn- set-last-login [conn {:keys [username]} timestamp]
+  (db-call :set-user-last-login conn {:username   username
+                                      :last-login (Date. ^long timestamp)}))
+
+(defn deactivate-user [conn {:keys [username] :as user}]
+  (set-last-login conn user 1001))
+
+(defn activate-user [conn {:keys [username] :as user}]
+  (set-last-login conn user (System/currentTimeMillis)))
+
+(defn active-user? [conn {:keys [username validity-period-in-ms] :as user}]
+  (if validity-period-in-ms
+    (let [last-login (.getTime ^Date (->> {:username username}
+                                               (db-call :select-user-last-login conn)
+                                               :last_login))]
+      (> (+ last-login validity-period-in-ms)
+         (System/currentTimeMillis)))
+    true))
+
+
+(defn get-user [conn {:keys [username] :as user}]
   (jdbc/atomic
     conn
-    (when-let [user (db-call :select-user conn {:username username})]
+    (when-let [user (db-call :select-user conn user)]
       (assoc user :tenant-roles (get-tenant-roles conn user)))))
 
-(defn get-users [conn]
-  (jdbc/atomic
-    conn
-    (mapv #(assoc % :tenant-roles (get-tenant-roles conn %))
-          (db-call :select-users conn))))
+(defn get-users
+  ([conn]
+   (get-users conn nil))
+  ([conn {:keys [validity-period-in-ms] :as options}]
+   (jdbc/atomic
+     conn
+     (mapv #(merge %
+                   {:tenant-roles (get-tenant-roles conn %)}
+                   (when validity-period-in-ms
+                     {:active? (active-user? conn (merge % options))}))
+           (db-call :select-users conn)))))
 
 (defn add-user [conn {:keys [username fullname email] :as user}]
   (db-call :insert-user conn user))
@@ -60,22 +87,26 @@
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn- validate-user-login [conn {:keys [tenant username password]}]
+(defn- validate-user-login [conn {:keys [tenant username password validity-period-in-ms] :as login}]
   (if-let [user (db-call :select-user-with-password conn {:username username})]
     (if (hs/check password
                   (:password user)
                   {:setter #(set-password conn {:username username :password %})})
-      {:status :success
-       :user   (-> user
-                   (dissoc :password)
-                   (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
-                                               [:name :config])))}
+      (if (active-user? conn login)
+        (do (activate-user conn {:username username})
+            {:status :success
+             :user   (-> user
+                         (dissoc :password)
+                         (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
+                                                     [:name :config])))})
+        {:status :failed
+         :cause  :login-expired})
       {:status :failed
        :cause  :invalid-password})
     {:status :failed
      :cause  :unknown-user}))
 
-(defn authenticate [conn {:keys [tenant username password] :as login}]
+(defn authenticate [conn {:keys [tenant username password validity-period-in-ms] :as login}]
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]

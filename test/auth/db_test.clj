@@ -341,6 +341,8 @@
 
       (testing "User Authentication"
 
+        ;; Login procedure
+
         (is (= (u/authenticate conn {:tenant "The News Company" :username "ux" :password "p1"})
                {:status :failed
                 :cause  :unknown-user}))
@@ -382,6 +384,65 @@
                          :tenant       {:name   "The News Company"
                                         :config {:some "config"}}
                          :capabilities #{"create_article" "edit_article" "review_article"}}}))
+
+        ;; Login-expiration
+
+        (let [username "user"
+              password "password"
+              user {:username username :fullname "User Name" :email "user@tenant.com"}
+              tenant-name "Tenant 1"
+              tenant {:name tenant-name :config {:k "v"}}
+              one-hour-in-ms (* 1000 60 60)
+              authentication-params {:tenant tenant-name :username username :password password :validity-period-in-ms one-hour-in-ms}
+              valid-user (assoc user
+                           :tenant tenant
+                           :capabilities #{})]
+
+          (is (= (+ (u/add-user conn user)
+                    (t/add-tenant conn tenant)
+                    (u/assign-tenant conn user tenant)
+                    (u/set-password conn (assoc user :password password)))
+                 4))
+
+          (Thread/sleep 2)
+
+          (is (= (u/authenticate conn {:tenant tenant-name :username username :password password :validity-period-in-ms 1})
+                 {:status :failed
+                  :cause  :login-expired}))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :success
+                  :user   valid-user}))
+
+          (let [n-active-users (fn []
+                                 (->> (u/get-users conn {:validity-period-in-ms one-hour-in-ms})
+                                      (filter :active?)
+                                      count))
+                n-active-users-before (n-active-users)]
+
+            (is (= (u/deactivate-user conn user)
+                   1))
+
+            (is (not (u/active-user? conn authentication-params)))
+
+            (is (= (- n-active-users-before 1)
+                   (n-active-users)))
+
+            (is (= (u/activate-user conn user)
+                   1))
+
+            (is (u/active-user? conn authentication-params))
+
+            (is (= n-active-users-before
+                   (n-active-users))))
+
+          (is (= (u/delete-user conn user)
+                 1))
+
+          (is (= (u/get-user conn user)
+                 nil)))
+
+        ;; Tokens
 
         (let [expire-seconds 1
               secret "server-hmac-secret"

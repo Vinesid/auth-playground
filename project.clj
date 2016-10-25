@@ -1,4 +1,4 @@
-(defproject auth-playground "0.1.0-SNAPSHOT"
+(defproject auth-playground "0.2.0-SNAPSHOT"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -13,6 +13,5 @@
                  [buddy/buddy-hashers "0.14.0"]
                  [buddy/buddy-sign "1.1.0"]
                  [clj-time "0.12.0"]]
-  :main ^:skip-aot auth-playground.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
