@@ -5,7 +5,8 @@
             [auth.db.schema :as schema]
             [auth.db.user :as u]
             [auth.db.tenant :as t]
-            [auth.db.role :as r]))
+            [auth.db.role :as r]
+            [buddy.hashers :as hs]))
 
 (deftest auth-db-test-crud
 
@@ -337,7 +338,7 @@
              6))
 
         (is (= (u/set-password conn {:username "jd" :password "pass"})
-               1)))
+               {:status :success})))
 
       (testing "User Authentication"
 
@@ -400,9 +401,10 @@
 
           (is (= (+ (u/add-user conn user)
                     (t/add-tenant conn tenant)
-                    (u/assign-tenant conn user tenant)
-                    (u/set-password conn (assoc user :password password)))
-                 4))
+                    (u/assign-tenant conn user tenant))
+                 3))
+          (is (= (u/set-password conn (assoc user :password password))
+                 {:status :success}))
 
           (Thread/sleep 2)
 
@@ -459,6 +461,9 @@
 
           (let [result (u/authenticate-token secret (:token result))]
 
+            (is (= (u/authenticate-reset-token conn secret (:token result))
+                   {:status :failed}))
+
             (is (= (dissoc result :exp)
                    {:status :success
                     :user   {:username     "jd"
@@ -478,17 +483,166 @@
                     :cause  :exp}))))
 
         (let [expire-seconds 2
-              reset-token (u/obtain-reset-token conn "secret" expire-seconds {:username "jd"})
-              reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
-              snd-reset (u/reset-password conn "secret" {:new-password "np" :token reset-token})
+              secret "secret"
+              reset-token (u/obtain-reset-token conn secret expire-seconds {:username "jd"})
+              auth-result (u/authenticate-token secret reset-token)
+              reset (u/reset-password conn secret {:new-password "np" :token reset-token})
+              snd-reset (u/reset-password conn secret {:new-password "np" :token reset-token})
               exp-reset (do
                           (Thread/sleep (* expire-seconds 1000 1.2))
-                          (u/reset-password conn "secret" {:new-password "np" :token reset-token}))]
+                          (u/reset-password conn secret {:new-password "np" :token reset-token}))]
+
+          (is (= auth-result
+                 {:status :failed}))
+
           (is (= (:status reset) :success))
           (is (= snd-reset {:status :failed}))
           (is (= exp-reset {:status :failed
                             :type   :validation
                             :cause  :exp}))))
+
+      (testing "Password Policies"
+
+        (let [username "policy-user"
+              password "password"
+              user {:username username :fullname "User Name" :email "user@tenant.com"}]
+
+          (is (= (u/add-user conn user)
+                 1))
+
+          (is (= (u/set-password conn (assoc user :password password))
+                 {:status :success}))
+
+          (let [lower-length-validation {:validation #(<= 8 (count %))
+                                         :prompt     "Password must be at least 8 characters"}
+                upper-length-validation {:validation #(>= 10 (count %))
+                                         :prompt     "Password must not be longer than 10 characters"}
+                number-validation {:validation #(re-find (re-pattern "(?=.*[0-9])") %)
+                                   :prompt     "Password  must  contain  a number"}
+                last-3-pw-validator (fn [conn username]
+                                      {:validation #(let [user-with-pws (u/get-user-passwords conn {:username username})]
+                                                     (every?
+                                                       (fn [old-pw] (not (hs/check % old-pw)))
+                                                       ((juxt :password :last_password :second_last_password) user-with-pws)))
+                                       :prompt     "Password must be different form last 3 used passwords"})
+                last-3-pw-validation (last-3-pw-validator conn "policy-user")
+                all-validations [lower-length-validation upper-length-validation
+                                 number-validation last-3-pw-validation]]
+
+            (is
+              (= (u/change-password conn {:username     "policy-user"
+                                          :password     "password"
+                                          :new-password "password1"
+                                          :validations  all-validations})
+                 {:status :success}))
+
+            (is
+              (= (u/change-password conn {:username     "policy-user"
+                                          :password     "password1"
+                                          :new-password "abcdefghi"
+                                          :validations  all-validations})
+                 {:status   :failed
+                  :cause    :infeasible-password
+                  :failures (map :prompt [number-validation])}))
+
+            (are [new-password result]
+              (is (= (u/set-password conn {:username    "policy-user"
+                                           :password    new-password
+                                           :validations all-validations})
+                     result))
+
+              "toshort" {:status   :failed
+                         :cause    :infeasible-password
+                         :failures (map :prompt
+                                        [lower-length-validation number-validation])}
+              "2short" {:status   :failed
+                        :cause    :infeasible-password
+                        :failures (map :prompt
+                                       [lower-length-validation])}
+              "tolooooooong" {:status   :failed
+                              :cause    :infeasible-password
+                              :failures (map :prompt
+                                             [upper-length-validation number-validation])}
+              "2loooooooong" {:status   :failed
+                              :cause    :infeasible-password
+                              :failures (map :prompt
+                                             [upper-length-validation])}
+
+
+              "password2" {:status :success}
+              "password3" {:status :success}
+
+              "password1" {:status   :failed
+                           :cause    :infeasible-password
+                           :failures [(:prompt last-3-pw-validation)]}
+              "password2" {:status   :failed
+                           :cause    :infeasible-password
+                           :failures [(:prompt last-3-pw-validation)]}
+              "password3" {:status   :failed
+                           :cause    :infeasible-password
+                           :failures [(:prompt last-3-pw-validation)]}
+
+              "password4" {:status :success}
+              "password1" {:status :success})
+
+            (let [reset-token (u/obtain-reset-token conn "secret" 10 {:username "policy-user"})]
+
+              (is
+                (= (u/reset-password conn "secret" {:new-password "password" :token reset-token :validations all-validations})
+                   {:status   :failed
+                    :cause    :infeasible-password
+                    :failures [(:prompt number-validation)]}))
+
+              (is
+                (= (u/reset-password conn "secret" {:new-password "password5" :token reset-token :validations all-validations})
+                   {:status :success}))))))
+
+      ;; Password-expiration
+      (testing "Password Expiration"
+
+        (let [username "user-pw-expire"
+              password "password"
+              user {:username username :fullname "User Name" :email "user@tenant.com"}
+              tenant-name "Tenant PW Expiration"
+              tenant {:name tenant-name :config {:k "v"}}
+              expiration-time-in-ms 500
+              authentication-params {:tenant tenant-name :username username :password password :password-validity-period-in-ms expiration-time-in-ms}
+              valid-user (assoc user
+                           :tenant tenant
+                           :capabilities #{})]
+
+          (is (= (+ (u/add-user conn user)
+                    (t/add-tenant conn tenant)
+                    (u/assign-tenant conn user tenant))
+                 3))
+
+          (is (= (u/set-password conn (assoc user :password password))
+                 {:status :success}))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :success
+                  :user   valid-user}))
+
+          (Thread/sleep expiration-time-in-ms)
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :failed
+                  :cause :password-expired}))
+
+          (is (= (u/authenticate conn (update authentication-params :password-validity-period-in-ms (partial * 100)))
+                 {:status :success
+                  :user   valid-user}))
+
+          (Thread/sleep expiration-time-in-ms)
+
+          (is (= (u/change-password conn (assoc user :password password :new-password password))
+                 {:status :success}))
+
+          (is (= (u/authenticate conn authentication-params)
+                 {:status :success
+                  :user   valid-user}))))
+
+
 
       (catch Exception e
         (throw e))

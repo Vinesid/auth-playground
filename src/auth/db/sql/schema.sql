@@ -8,6 +8,9 @@ CREATE TABLE `user` (
   `email` varchar(255) NOT NULL,
   `last_login` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
   `password` varchar(255),
+  `last_password` varchar(255),
+  `second_last_password` varchar(255),
+  `last_password_change` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
   `reset` boolean,
   PRIMARY KEY (`id`),
   UNIQUE INDEX `idx_user_username` (`username`)

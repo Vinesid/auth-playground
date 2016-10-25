@@ -48,6 +48,14 @@
          (System/currentTimeMillis)))
     true))
 
+(defn expired-pw? [conn {:keys [username password-validity-period-in-ms] :as user}]
+  (if password-validity-period-in-ms
+    (let [last-change (.getTime ^Date (->> {:username username}
+                                           (db-call :select-user-last-password-change conn)
+                                           :last_password_change))]
+      (< (+ last-change password-validity-period-in-ms)
+         (System/currentTimeMillis)))
+    false))
 
 (defn get-user [conn {:keys [username] :as user}]
   (jdbc/atomic
@@ -79,34 +87,60 @@
 (defn delete-user [conn {:keys [username]}]
   (db-call :delete-user conn {:username username}))
 
-(defn set-password [conn {:keys [username password]}]
-  (db-call :update-encrypted-password conn {:username username
-                                            :password (hs/derive password)}))
+(defn get-user-passwords [conn {:keys [username] :as user}]
+  (db-call :select-user-last-passwords conn user))
+
+(defn- validate-password [password validations]
+  (not-empty
+    (keep (fn [{:keys [validation prompt]}]
+            (when-not (validation password)
+              prompt))
+          validations)))
+
+(defn set-password [conn {:keys [username password validations]}]
+  (if-let [failures (when validations (validate-password password validations))]
+    {:status   :failed
+     :cause    :infeasible-password
+     :failures failures}
+    (if (= 1 (db-call :update-encrypted-password conn {:username username
+                                                       :password (hs/derive password)}))
+      {:status :success}
+      {:status :failed})))
 
 (defn disable-password [conn {:keys [username]}]
   (db-call :update-encrypted-password conn {:username username
                                             :password ""}))
 
-(defn- validate-user-login [conn {:keys [tenant username password validity-period-in-ms] :as login}]
-  (if-let [user (db-call :select-user-with-password conn {:username username})]
-    (if (hs/check password
-                  (:password user)
-                  {:setter #(set-password conn {:username username :password %})})
-      (if (active-user? conn login)
-        (do (activate-user conn {:username username})
-            {:status :success
-             :user   (-> user
-                         (dissoc :password)
-                         (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
-                                                     [:name :config])))})
-        {:status :failed
-         :cause  :login-expired})
-      {:status :failed
-       :cause  :invalid-password})
-    {:status :failed
-     :cause  :unknown-user}))
+(defn- validate-user-login [conn {:keys [tenant username password
+                                         validity-period-in-ms password-validity-period-in-ms] :as login}]
+  (let [user (db-call :select-user-with-password conn {:username username})]
+    (cond
+       (not user)  {:status :failed
+                    :cause  :unknown-user}
 
-(defn authenticate [conn {:keys [tenant username password validity-period-in-ms] :as login}]
+      (not (hs/check password
+                     (:password user)
+                     {:setter #(set-password conn {:username username :password %})}))
+      {:status :failed
+       :cause  :invalid-password}
+
+      (not (active-user? conn login))
+      {:status :failed
+       :cause  :login-expired}
+
+      (expired-pw? conn login)
+      {:status :failed
+       :cause  :password-expired}
+
+       :else (do (activate-user conn {:username username})
+                 {:status :success
+                  :user   (-> user
+                              (dissoc :password)
+                              (assoc :tenant (select-keys (t/get-tenant conn {:name tenant})
+                                                   [:name :config])))}))))
+
+(defn authenticate [conn {:keys [tenant username password
+                                 validity-period-in-ms password-validity-period-in-ms] :as login}]
   (let [user-auth (validate-user-login conn login)]
     (if (= (:status user-auth) :success)
       (if-let [tuid (:id (db-call :tenant-user-id conn {:username username :tenant-name tenant}))]
@@ -118,13 +152,11 @@
          :cause  :invalid-tenant})
       user-auth)))
 
-(defn change-password [conn {:keys [username password new-password]}]
+(defn change-password [conn {:keys [username password new-password validations]}]
   (jdbc/atomic conn
     (let [auth-result (validate-user-login conn {:username username :password password})]
       (if (= (:status auth-result) :success)
-        (if (= 1 (set-password conn {:username username :password new-password}))
-          {:status :success}
-          {:status :failed})
+        (set-password conn {:username username :password new-password :validations validations})
         auth-result))))
 
 (def ^:private encryption
@@ -143,9 +175,12 @@
 
 (defn authenticate-token [secret token]
   (try
-    (-> (jwt/decrypt token (hash/sha256 secret) encryption)
-        (update-in [:user :capabilities] set)
-        (assoc :status :success))
+    (let [decrypted-token (jwt/decrypt token (hash/sha256 secret) encryption)]
+      (if (:user decrypted-token)
+        (-> decrypted-token
+            (update-in [:user :capabilities] set)
+            (assoc :status :success))
+        {:status :failed}))
     (catch Exception e
       (assoc (ex-data e) :status :failed))))
 
@@ -160,15 +195,30 @@
     {:status :failed
      :cause :unknown-user}))
 
-(defn reset-password [conn secret {:keys [token new-password]}]
-  (let [result (authenticate-token secret token)]
+(defn- user-reset?
+  [conn user]
+  (:reset (db-call :select-user-reset conn user)))
+
+(defn authenticate-reset-token [conn secret token]
+  (try
+    (let [decrypted-token (jwt/decrypt token (hash/sha256 secret) encryption)
+          user (:reset decrypted-token) ]
+      (if (and user (user-reset? conn user))
+        (-> decrypted-token
+            (assoc :status :success))
+        {:status :failed}))
+    (catch Exception e
+      (assoc (ex-data e) :status :failed))))
+
+(defn reset-password [conn secret {:keys [token new-password validations]}]
+  (let [result (authenticate-reset-token conn secret token)]
     (if (= (:status result) :success)
-      (let [reset? (:reset (db-call :select-user-reset conn (:reset result)))]
-        (if (and reset?
-                 (= 1 (set-password conn {:username (get-in result [:reset :username])
-                                          :password new-password})))
-          {:status :success}
-          {:status :failed}))
+      (if (user-reset? conn (:reset result))
+        (set-password conn {:username    (get-in result [:reset :username])
+                            :password    new-password
+                            :validations validations})
+        {:status :failed
+         :cause  :not-reset})
       result)))
 
 (defn assign-tenant [conn {:keys [username] :as user} {:keys [name] :as tenant}]

@@ -18,7 +18,8 @@ where username = :username
 
 -- :name update-encrypted-password :! :n
 update user
-set password = :password, reset = false
+set password = :password, last_password = password, second_last_password = last_password, reset = false,
+last_password_change = CURRENT_TIMESTAMP()
 where username = :username
 
 -- :name set-user-last-login :! :n
@@ -47,6 +48,14 @@ where username = :username
 select username, fullname, email, password from user
 where username = :username
 order by username
+
+-- :name select-user-last-passwords :? :1
+select username, password, last_password, second_last_password from user
+where username = :username
+
+-- :name select-user-last-password-change :? :1
+select username, last_password_change from user
+where username = :username
 
 -- :name select-users :? :n
 select username, fullname, email from user
