@@ -18,7 +18,7 @@ where username = :username
 
 -- :name update-encrypted-password :! :n
 update user
-set password = :password, last_password = password, second_last_password = last_password, reset = false,
+set second_last_password = last_password, last_password = password, password = :password, reset = false,
 last_password_change = CURRENT_TIMESTAMP()
 where username = :username
 
